@@ -1,0 +1,7 @@
+Flask==2.0.1
+pandas
+matplotlib
+numpy
+pillow
+openpyxl
+tkcalendar==1.6.1
