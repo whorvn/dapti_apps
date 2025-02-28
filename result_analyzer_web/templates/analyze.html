@@ -55,8 +55,9 @@
     <!-- Table of results -->
     <div class="col-lg-8">
         <div class="card shadow">
-            <div class="card-header bg-secondary text-white">
+            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Qualifying Students</h5>
+                <button id="resetFilters" class="btn btn-sm btn-light">Reset Filters</button>
             </div>
             <div class="card-body">
                 {% if students %}
@@ -64,13 +65,13 @@
                     <table class="table table-striped table-hover" id="studentsTable">
                         <thead>
                             <tr>
-                                <th class="sortable" data-sort="name">Student Name</th>
-                                <th class="sortable" data-sort="grade">Grade</th>
-                                <th class="sortable" data-sort="days">Days Worked</th>
-                                <th class="sortable" data-sort="tasks">Tasks</th>
-                                <th class="sortable" data-sort="diagnostics">Diagnostics</th>
-                                <th class="sortable" data-sort="streak">Max Streak</th>
-                                <th class="sortable" data-sort="success">Avg Success</th>
+                                <th class="sortable" data-sort="name">Student Name <span class="sort-indicator"></span></th>
+                                <th class="sortable" data-sort="grade">Grade <span class="sort-indicator"></span></th>
+                                <th class="sortable" data-sort="days">Days Worked <span class="sort-indicator"></span></th>
+                                <th class="sortable" data-sort="tasks">Tasks <span class="sort-indicator"></span></th>
+                                <th class="sortable" data-sort="diagnostics">Diagnostics <span class="sort-indicator"></span></th>
+                                <th class="sortable" data-sort="streak">Max Streak <span class="sort-indicator"></span></th>
+                                <th class="sortable" data-sort="success">Avg Success <span class="sort-indicator"></span></th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -126,6 +127,9 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Keep track of multiple filter order
+    const filterOrder = [];
+    
     // Table sorting functionality
     const getCellValue = (tr, idx) => {
         const cell = tr.children[idx];
@@ -145,22 +149,53 @@ document.addEventListener('DOMContentLoaded', function() {
         return v1.toString().localeCompare(v2);
     };
     
+    // Function to apply all filters in order
+    const applyFilters = () => {
+        const table = document.getElementById('studentsTable');
+        if (!table) return;
+        
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        
+        // Save original order if not done already
+        if (!rows[0]?.originalIndex) {
+            rows.forEach((row, index) => row.originalIndex = index);
+        }
+        
+        // Apply each filter in order
+        filterOrder.forEach(({ idx, asc }) => {
+            rows.sort(comparer(idx, asc)).forEach(tr => tbody.appendChild(tr));
+        });
+    };
+    
     // Add click event to all sortable headers
     document.querySelectorAll('#studentsTable th.sortable').forEach(th => {
         th.addEventListener('click', () => {
             const table = th.closest('table');
-            const tbody = table.querySelector('tbody');
-            Array.from(tbody.querySelectorAll('tr'))
-                .sort(comparer(Array.from(th.parentNode.children).indexOf(th), 
-                      this.asc = !this.asc))
-                .forEach(tr => tbody.appendChild(tr));
+            const idx = Array.from(th.parentNode.children).indexOf(th);
+            const asc = !th.classList.contains('sort-asc');
+            
+            // Update filter order
+            filterOrder.push({ idx, asc });
+            applyFilters();
             
             // Visual indicator of sort direction
             const allHeaders = table.querySelectorAll('th');
             allHeaders.forEach(header => {
                 header.classList.remove('sort-asc', 'sort-desc');
             });
-            th.classList.add(this.asc ? 'sort-asc' : 'sort-desc');
+            th.classList.add(asc ? 'sort-asc' : 'sort-desc');
+        });
+    });
+    
+    // Reset filters button functionality
+    document.getElementById('resetFilters').addEventListener('click', () => {
+        filterOrder.length = 0;
+        applyFilters();
+        
+        // Remove sort indicators
+        document.querySelectorAll('#studentsTable th').forEach(th => {
+            th.classList.remove('sort-asc', 'sort-desc');
         });
     });
 });

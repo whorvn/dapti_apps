@@ -14,7 +14,7 @@
             min-height: 100vh;
         }
         
-        /* Watermark */
+        /* Improved watermark - increased opacity and z-index */
         body::before {
             content: "ITZREONE";
             position: fixed;
@@ -23,12 +23,12 @@
             transform: translate(-50%, -50%) rotate(-30deg);
             font-size: 15vw;
             font-weight: bold;
-            opacity: 0.03;
-            z-index: -1;
+            opacity: 0.07; /* Increased opacity from 0.03 to 0.07 */
+            z-index: 0; /* Changed from -1 to 0 */
             white-space: nowrap;
             pointer-events: none;
             user-select: none;
-            color: red;
+            color: currentColor; /* Uses current text color to adapt to theme */
         }
         
         .navbar {
@@ -99,6 +99,34 @@
             color: #e6f2ff;
         }
         
+        /* Improved dark mode adjustments for navbar */
+        [data-bs-theme="dark"] .navbar {
+            background-color: #212529 !important;
+        }
+        
+        [data-bs-theme="dark"] .navbar-light .navbar-brand,
+        [data-bs-theme="dark"] .navbar-light .navbar-nav .nav-link {
+            color: #f8f9fa !important;
+        }
+        
+        [data-bs-theme="dark"] .navbar-light .navbar-nav .nav-link:hover {
+            color: #0d6efd !important;
+        }
+        
+        /* Card content improved contrast in dark mode */
+        [data-bs-theme="dark"] .card {
+            background-color: #2b3035;
+        }
+        
+        /* Dark mode table improvements */
+        [data-bs-theme="dark"] .table {
+            color: #e9ecef;
+        }
+        
+        [data-bs-theme="dark"] .table-striped>tbody>tr:nth-of-type(odd)>* {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        
         /* Dark mode toggle */
         .theme-toggle {
             cursor: pointer;
@@ -118,7 +146,7 @@
 <body>
     <div class="container">
         <!-- Navigation bar -->
-        <nav class="navbar navbar-expand-lg navbar-light bg-light rounded">
+        <nav class="navbar navbar-expand-lg rounded"> <!-- Removed navbar-light bg-light classes -->
             <div class="container-fluid">
                 <a class="navbar-brand" href="{{ url_for('index') }}">Student Task Analysis</a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
@@ -180,6 +208,7 @@
             const lightIcon = document.getElementById('lightThemeIcon');
             const darkIcon = document.getElementById('darkThemeIcon');
             const htmlElement = document.documentElement;
+            const navbarElement = document.querySelector('.navbar');
             
             // Check for saved theme preference
             const savedTheme = localStorage.getItem('theme');
@@ -204,11 +233,15 @@
                     darkIcon.classList.remove('d-none');
                     themeToggle.classList.add('btn-dark');
                     themeToggle.classList.remove('btn-light');
+                    navbarElement.classList.add('navbar-dark');
+                    navbarElement.classList.remove('navbar-light', 'bg-light');
                 } else {
                     lightIcon.classList.remove('d-none');
                     darkIcon.classList.add('d-none');
                     themeToggle.classList.add('btn-light');
                     themeToggle.classList.remove('btn-dark');
+                    navbarElement.classList.add('navbar-light', 'bg-light');
+                    navbarElement.classList.remove('navbar-dark');
                 }
             }
         });
