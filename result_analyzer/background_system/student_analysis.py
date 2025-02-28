@@ -142,69 +142,119 @@ class StudentAnalysisApp:
             # Print initial column names for debugging
             print("Original columns:", self.df.columns.tolist())
             
-            # Check if this is the extended format (with diagnostic scores)
-            has_extended_format = any("Diagnostic" in col for col in self.df.columns if isinstance(col, str))
+            # Process the multi-subject format
+            transformed_data = []
             
-            if has_extended_format:
-                print("Detected extended format with diagnostic scores")
-                # For extended format, create a unified view for analysis
+            # Identify all subject columns in the data
+            subject_patterns = {}
+            
+            # First identify the base columns (without subject)
+            base_cols = []
+            subject_cols = {}
+            diagnostic_cols = []
+            
+            for col in self.df.columns:
+                col_str = str(col).strip()
                 
-                # First collect all the basic columns
-                basic_cols = [col for col in self.df.columns if not (
-                    isinstance(col, str) and (
-                        "Diagnostic" in col or 
-                        "English" in col or
-                        col in ["Practice Task", "Completion Date", "Practice Status", "Success/Progress Rate"]
-                    )
-                )]
-                
-                # Create a base dataframe with student info
-                base_df = self.df[basic_cols].copy()
-                
-                # Create lists to store the transformed data
-                transformed_data = []
-                
-                for _, row in self.df.iterrows():
-                    # Process main practice task
-                    if pd.notna(row.get("Practice Task")) and row.get("Practice Task") != "Not Started":
-                        task_record = {
-                            "Name": row.get("Name", ""),
-                            "Surname": row.get("Surname", ""),
-                            "Phone": row.get("Phone Number", ""),
-                            "Registration_Date": row.get("Registration Date"),
-                            "Task": row.get("Practice Task", ""),
-                            "Completion_Date": row.get("Completion Date"),
-                            "Status": row.get("Practice Status", ""),
-                            "Success_Rate": self._parse_rate(row.get("Success/Progress Rate"))
-                        }
-                        transformed_data.append(task_record)
+                # Collect diagnostic columns separately
+                if "Diagnostic" in col_str:
+                    diagnostic_cols.append(col)
+                    continue
                     
-                    # Process English practice task
-                    if pd.notna(row.get("English Practice Task")) and row.get("English Practice Task") != "Not Started":
-                        eng_task_record = {
-                            "Name": row.get("Name", ""),
-                            "Surname": row.get("Surname", ""),
-                            "Phone": row.get("Phone Number", ""),
-                            "Registration_Date": row.get("Registration Date"),
-                            "Task": row.get("English Practice Task", ""),
-                            "Completion_Date": row.get("Completion Date (English)"),
-                            "Status": row.get("Practice Status (English)", ""),
-                            "Success_Rate": self._parse_rate(row.get("Success/Progress Rate (English)"))
-                        }
-                        transformed_data.append(eng_task_record)
-                
-                # Convert the transformed data to a DataFrame
-                if transformed_data:
-                    self.df = pd.DataFrame(transformed_data)
-                    print("Transformed columns:", self.df.columns.tolist())
+                # Check if this is a subject-specific column
+                subject_match = None
+                if "(" in col_str and ")" in col_str:
+                    # Extract subject name from parentheses
+                    subject_name = col_str[col_str.find("(")+1:col_str.find(")")]
+                    base_col_name = col_str[:col_str.find("(")].strip()
+                    
+                    # Initialize subject pattern if not seen before
+                    if subject_name not in subject_patterns:
+                        subject_patterns[subject_name] = {}
+                    
+                    # Store the column mapping
+                    subject_patterns[subject_name][base_col_name] = col
+                    
+                    # Track subject columns
+                    if subject_name not in subject_cols:
+                        subject_cols[subject_name] = []
+                    subject_cols[subject_name].append(col)
                 else:
-                    self.status_var.set("No task data found in the file. Check the format.")
-                    return
+                    # This is a base column
+                    base_cols.append(col)
+            
+            # Add "Math" as default subject if we find Practice Task without parentheses
+            default_subject_cols = {}
+            for col in base_cols:
+                col_str = str(col).strip()
+                if col_str in ["Practice Task", "Completion Date", "Practice Status", "Success/Progress Rate"]:
+                    if "Math" not in subject_patterns:
+                        subject_patterns["Math"] = {}
+                    subject_patterns["Math"][col_str] = col
+                    default_subject_cols[col_str] = col
+                    
+            if default_subject_cols:
+                subject_cols["Math"] = list(default_subject_cols.values())
+            
+            print("Detected subjects:", list(subject_patterns.keys()))
+            print("Subject columns:", subject_cols)
+            
+            # Create a base DataFrame with student info - excluding subject columns
+            excluded_cols = []
+            for subject in subject_cols:
+                excluded_cols.extend(subject_cols[subject])
+            
+            base_df_cols = [col for col in self.df.columns if col not in excluded_cols and "Practice" not in str(col) and "Success" not in str(col) and "Completion" not in str(col)]
+            
+            # Process each row in the DataFrame
+            for idx, row in self.df.iterrows():
+                # Process each subject's columns
+                for subject, pattern in subject_patterns.items():
+                    # Check if we have all necessary columns for this subject
+                    if not all(k in pattern for k in ["Practice Task", "Completion Date", "Practice Status", "Success/Progress Rate"]):
+                        print(f"Missing required columns for subject {subject}")
+                        continue
+                        
+                    task_col = pattern["Practice Task"]
+                    date_col = pattern["Completion Date"]
+                    status_col = pattern["Practice Status"]
+                    rate_col = pattern["Success/Progress Rate"]
+                    
+                    # Skip if no task or "Not Started"
+                    if pd.isna(row.get(task_col)) or row.get(task_col) == "Not Started":
+                        continue
+                        
+                    # Create a record for this task
+                    task_record = {
+                        "Name": row.get("Name", ""),
+                        "Surname": row.get("Surname", ""),
+                        "Phone": row.get("Phone Number", ""),
+                        "Registration_Date": row.get("Registration Date"),
+                        "Subject": subject,
+                        "Task": row.get(task_col, ""),
+                        "Completion_Date": row.get(date_col),
+                        "Status": row.get(status_col, ""),
+                        "Success_Rate": self._parse_rate(row.get(rate_col))
+                    }
+                    
+                    # Add any diagnostic scores if available
+                    for diag_col in diagnostic_cols:
+                        if not pd.isna(row.get(diag_col)):
+                            diag_name = str(diag_col).replace(" - Accuracy", "")
+                            task_record[diag_name] = row.get(diag_col)
+                    
+                    transformed_data.append(task_record)
+                    
+            # Convert the transformed data to a DataFrame
+            if transformed_data:
+                self.df = pd.DataFrame(transformed_data)
+                print("Transformed columns:", self.df.columns.tolist())
+                
+                # Add subject filter to the GUI
+                self.add_subject_filter(self.df["Subject"].unique())
             else:
-                # Handle column names based on the original structure
-                if len(self.df.columns) >= 8:
-                    self.df.columns = ["Name", "Surname", "Phone", "Registration_Date", 
-                                    "Task", "Completion_Date", "Status", "Success_Rate"] + list(self.df.columns[8:])
+                self.status_var.set("No task data found in the file. Check the format.")
+                return
             
             # Convert Success_Rate to numeric, handling all possible formats
             if self.df["Success_Rate"].dtype == object:  # If it's a string or mixed type
@@ -313,17 +363,24 @@ class StudentAnalysisApp:
             min_success_rate = float(self.min_success_rate.get())
             min_days = int(self.min_days.get())
             
+            # Apply subject filter if available
+            filtered_df = self.df.copy()
+            if hasattr(self, 'subject_var') and self.subject_var.get() != "All":
+                selected_subject = self.subject_var.get()
+                filtered_df = filtered_df[filtered_df["Subject"] == selected_subject]
+                print(f"Filtered for subject: {selected_subject}, records: {len(filtered_df)}")
+            
             # Ensure Success_Rate is numeric
-            if not pd.api.types.is_numeric_dtype(self.df["Success_Rate"]):
-                self.df["Success_Rate"] = pd.to_numeric(self.df["Success_Rate"], errors='coerce')
-                self.df["Success_Rate"].fillna(0, inplace=True)
+            if not pd.api.types.is_numeric_dtype(filtered_df["Success_Rate"]):
+                filtered_df["Success_Rate"] = pd.to_numeric(filtered_df["Success_Rate"], errors='coerce')
+                filtered_df["Success_Rate"].fillna(0, inplace=True)
             
             # Filter by date range, success rate, and status
-            filtered_df = self.df[
-                (self.df["Completion_Date"] >= start_date) &
-                (self.df["Completion_Date"] <= end_date) &
-                (self.df["Success_Rate"] > min_success_rate) &
-                (self.df["Status"] == "Done")
+            filtered_df = filtered_df[
+                (filtered_df["Completion_Date"] >= start_date) &
+                (filtered_df["Completion_Date"] <= end_date) &
+                (filtered_df["Success_Rate"] > min_success_rate) &
+                (filtered_df["Status"] == "Done")
             ]
             
             # Print debug information
@@ -356,12 +413,17 @@ class StudentAnalysisApp:
                     # Format dates for display
                     dates_str = ", ".join([date.strftime("%Y-%m-%d") for date in completion_dates])
                     
+                    # Get unique subjects for this student
+                    subjects = sorted(group["Subject"].unique())
+                    subjects_str = ", ".join(subjects)
+                    
                     student_summaries.append({
                         "Full_Name": student_name,
                         "Days_Worked": days_worked,
                         "Total_Tasks": total_tasks,
                         "Max_Streak": max_streak,
                         "Avg_Success": avg_success,
+                        "Subjects": subjects_str,
                         "Completion_Dates": dates_str
                     })
                     
@@ -477,21 +539,33 @@ class StudentAnalysisApp:
         # Show date range
         ttk.Label(control_frame, text=f"Date Range: {first_date} to {last_date}").pack(side="left", padx=5)
         
+        # Subject filter for timeline
+        ttk.Label(control_frame, text="Filter Subject:").pack(side="left", padx=(20, 5))
+        timeline_subject_var = tk.StringVar(value="All")
+        timeline_subject_dropdown = ttk.Combobox(control_frame, textvariable=timeline_subject_var, width=10)
+        timeline_subject_dropdown.pack(side="left", padx=5)
+        
+        # Get unique subjects
+        subjects = ["All"] + sorted(student_data["Subject"].unique().tolist())
+        timeline_subject_dropdown['values'] = subjects
+        
         # Create a frame for the timeline table
         table_frame = ttk.Frame(parent, padding="5")
         table_frame.pack(fill="both", expand=True)
         
         # Create timeline treeview
-        columns = ("date", "tasks_completed", "avg_success")
+        columns = ("date", "subjects", "tasks_completed", "avg_success")
         timeline_tree = ttk.Treeview(table_frame, columns=columns)
         timeline_tree.heading("#0", text="")
         timeline_tree.heading("date", text="Date")
+        timeline_tree.heading("subjects", text="Subjects")
         timeline_tree.heading("tasks_completed", text="Tasks Completed")
         timeline_tree.heading("avg_success", text="Avg Success Rate")
         
         timeline_tree.column("#0", width=0, stretch=tk.NO)
         timeline_tree.column("date", width=120)
-        timeline_tree.column("tasks_completed", width=120)
+        timeline_tree.column("subjects", width=120)
+        timeline_tree.column("tasks_completed", width=150)
         timeline_tree.column("avg_success", width=120)
         
         # Add scrollbar
@@ -500,42 +574,61 @@ class StudentAnalysisApp:
         timeline_tree.configure(yscrollcommand=scrollbar.set)
         timeline_tree.pack(fill="both", expand=True)
         
-        # Group data by date
-        date_groups = student_data.groupby(student_data["Completion_Date"].dt.date)
-        
-        # Create a date range from first task to today
-        date_range = pd.date_range(start=first_date, end=last_date)
-        
-        # Populate the timeline with all dates
-        for date in date_range:
-            date_only = date.date()
-            date_str = date_only.strftime("%Y-%m-%d")
-            
-            # Check if any tasks were completed on this date
-            if date_only in date_groups.groups:
-                day_data = date_groups.get_group(date_only)
-                tasks_count = len(day_data)
-                avg_success = day_data["Success_Rate"].mean()
+        # Function to update timeline with selected subject
+        def update_timeline(*args):
+            # Clear existing items
+            for item in timeline_tree.get_children():
+                timeline_tree.delete(item)
                 
-                # Tasks completed with their success rates
-                task_details = ", ".join([f"{row['Task']}: {row['Success_Rate']:.1f}%" 
-                                        for _, row in day_data.iterrows()])
-                
-                timeline_tree.insert("", "end", text="", values=(
-                    date_str, 
-                    f"{tasks_count} ({task_details})", 
-                    f"{avg_success:.2f}%"
-                ))
-                
-                # Apply a background color for days with tasks
-                last_item = timeline_tree.get_children()[-1]
-                timeline_tree.item(last_item, tags=("has_task",))
+            # Filter based on selected subject
+            if timeline_subject_var.get() == "All":
+                filtered_data = student_data
             else:
-                # No tasks on this day
-                timeline_tree.insert("", "end", text="", values=(date_str, "No tasks", "-"))
+                filtered_data = student_data[student_data["Subject"] == timeline_subject_var.get()]
+            
+            # Group data by date
+            date_groups = filtered_data.groupby(filtered_data["Completion_Date"].dt.date)
+            
+            # Create a date range from first task to today
+            date_range = pd.date_range(start=first_date, end=last_date)
+            
+            # Populate the timeline with all dates
+            for date in date_range:
+                date_only = date.date()
+                date_str = date_only.strftime("%Y-%m-%d")
+                
+                # Check if any tasks were completed on this date
+                if date_only in date_groups.groups:
+                    day_data = date_groups.get_group(date_only)
+                    tasks_count = len(day_data)
+                    avg_success = day_data["Success_Rate"].mean()
+                    
+                    # Tasks completed with their success rates
+                    task_details = ", ".join([f"{row['Task']}: {row['Success_Rate']:.1f}%" 
+                                            for _, row in day_data.iterrows()])
+                    
+                    timeline_tree.insert("", "end", text="", values=(
+                        date_str, 
+                        ", ".join(day_data["Subject"].unique()),
+                        f"{tasks_count} ({task_details})", 
+                        f"{avg_success:.2f}%"
+                    ))
+                    
+                    # Apply a background color for days with tasks
+                    last_item = timeline_tree.get_children()[-1]
+                    timeline_tree.item(last_item, tags=("has_task",))
+                else:
+                    # No tasks on this day
+                    timeline_tree.insert("", "end", text="", values=(date_str, "-", "No tasks", "-"))
+            
+            # Define tags for coloring
+            timeline_tree.tag_configure('has_task', background='#e6f2ff')
         
-        # Define tags for coloring
-        timeline_tree.tag_configure('has_task', background='#e6f2ff')
+        # Bind the update function to the subject dropdown
+        timeline_subject_dropdown.bind("<<ComboboxSelected>>", update_timeline)
+        
+        # Initial update
+        update_timeline()
     
     def create_tasks_view(self, parent, student_data):
         """Create a detailed view of all tasks completed by the student"""
@@ -547,16 +640,18 @@ class StudentAnalysisApp:
         table_frame.pack(fill="both", expand=True)
         
         # Create tasks treeview
-        columns = ("date", "task", "success_rate", "status")
+        columns = ("date", "subject", "task", "success_rate", "status")
         tasks_tree = ttk.Treeview(table_frame, columns=columns)
         tasks_tree.heading("#0", text="")
         tasks_tree.heading("date", text="Completion Date")
+        tasks_tree.heading("subject", text="Subject")
         tasks_tree.heading("task", text="Task")
         tasks_tree.heading("success_rate", text="Success Rate")
         tasks_tree.heading("status", text="Status")
         
         tasks_tree.column("#0", width=0, stretch=tk.NO)
         tasks_tree.column("date", width=120)
+        tasks_tree.column("subject", width=100)
         tasks_tree.column("task", width=150)
         tasks_tree.column("success_rate", width=100)
         tasks_tree.column("status", width=100)
@@ -573,6 +668,7 @@ class StudentAnalysisApp:
             
             tasks_tree.insert("", "end", text="", values=(
                 date_str,
+                row["Subject"],
                 row["Task"],
                 f"{row['Success_Rate']:.2f}%",
                 row["Status"]
@@ -594,8 +690,8 @@ class StudentAnalysisApp:
     
     def create_progress_charts(self, parent, student_data):
         """Create progress charts showing the student's performance over time"""
-        # Create a figure with 2 subplots
-        fig = plt.Figure(figsize=(10, 8))
+        # Create a figure with multiple subplots - one more for subjects
+        fig = plt.Figure(figsize=(10, 12))
         
         # Daily success rate chart
         daily_data = student_data.groupby(student_data["Completion_Date"].dt.date).agg({
@@ -606,7 +702,7 @@ class StudentAnalysisApp:
         daily_data = daily_data.sort_values("Completion_Date")
         
         # Create the first subplot (daily success rate)
-        ax1 = fig.add_subplot(211)
+        ax1 = fig.add_subplot(311)
         ax1.plot(daily_data["Completion_Date"], daily_data["Success_Rate"], 
                  marker='o', linestyle='-', color='blue')
         ax1.set_title('Daily Average Success Rate')
@@ -623,7 +719,7 @@ class StudentAnalysisApp:
         task_counts.columns = ["Completion_Date", "Task_Count"]
         
         # Create the second subplot (tasks completed per day)
-        ax2 = fig.add_subplot(212)
+        ax2 = fig.add_subplot(312)
         ax2.bar(task_counts["Completion_Date"], task_counts["Task_Count"], color='green', alpha=0.7)
         ax2.set_title('Tasks Completed Per Day')
         ax2.set_ylabel('Number of Tasks')
@@ -632,6 +728,35 @@ class StudentAnalysisApp:
         
         # Format dates on x-axis
         ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+        
+        # NEW: Subject performance chart
+        ax3 = fig.add_subplot(313)
+        
+        # Group by subject
+        subject_data = student_data.groupby("Subject").agg({
+            "Success_Rate": "mean",
+            "Task": "count"
+        }).reset_index()
+        
+        # Sort by number of tasks
+        subject_data = subject_data.sort_values("Task", ascending=False)
+        
+        # Bar chart for subjects
+        bars = ax3.bar(subject_data["Subject"], subject_data["Success_Rate"], color='purple', alpha=0.7)
+        
+        # Add task count as text above bars
+        for bar, count in zip(bars, subject_data["Task"]):
+            height = bar.get_height()
+            ax3.text(bar.get_x() + bar.get_width()/2., height + 2,
+                    f'{count} tasks', ha='center', va='bottom', rotation=0)
+        
+        ax3.set_title('Average Success Rate by Subject')
+        ax3.set_ylabel('Success Rate (%)')
+        ax3.set_ylim(0, 105)  # Set y limit to accommodate annotations
+        ax3.grid(True, linestyle='--', alpha=0.7, axis='y')
+        
+        # Rotate x-axis labels for better readability
+        plt.setp(ax3.get_xticklabels(), rotation=45, ha='right')
         
         # Adjust layout
         fig.tight_layout()
@@ -722,6 +847,19 @@ class StudentAnalysisApp:
             
         except Exception as e:
             self.status_var.set(f"Error exporting results: {str(e)}")
+
+    def add_subject_filter(self, subjects):
+        """Add a subject filter dropdown to the filter frame"""
+        # Only add if it doesn't already exist
+        if not hasattr(self, 'subject_var'):
+            ttk.Label(self.filter_frame, text="Subject:").grid(row=1, column=0, sticky="w")
+            self.subject_var = tk.StringVar(value="All")
+            self.subject_dropdown = ttk.Combobox(self.filter_frame, textvariable=self.subject_var, width=15)
+            self.subject_dropdown.grid(row=1, column=1, padx=5, pady=5)
+        
+        # Update the values
+        subjects_list = ["All"] + sorted(list(subjects))
+        self.subject_dropdown['values'] = subjects_list
 
 if __name__ == "__main__":
     root = tk.Tk()
