@@ -1205,3 +1205,302 @@ class StudentAnalysisApp:
                 "Success_Rate": "mean"
             }).reset_index()
             
+            # Sort by date
+            daily_data = daily_data.sort_values("Completion_Date")
+            
+            # Plot success rate over time
+            ax.plot(daily_data["Completion_Date"], daily_data["Success_Rate"], 
+                    marker='o', linestyle='-', color='blue')
+            ax.set_title(f'{subject} - Success Rate Progress')
+            ax.set_ylabel('Success Rate (%)')
+            ax.set_xlabel('Date')
+            ax.grid(True, linestyle='--', alpha=0.7)
+            
+            # Format dates on x-axis
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+            fig.autofmt_xdate()
+            
+            # Adjust layout
+            fig.tight_layout()
+            
+            # Create canvas
+            canvas = FigureCanvasTkAgg(fig, master=subject_tab)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill="both", expand=True)
+            
+            # Add toolbar with zoom functionality
+            toolbar = NavigationToolbar2Tk(canvas, subject_tab)
+            toolbar.update()
+            canvas.get_tk_widget().pack(fill="both", expand=True)
+            
+            # Add information table below
+            info_frame = ttk.Frame(subject_tab, padding=10)
+            info_frame.pack(fill="x")
+            
+            # Calculate metrics
+            task_count = len(subject_data_filtered)
+            avg_success = subject_data_filtered["Success_Rate"].mean()
+            days_worked = len(subject_data_filtered["Completion_Date"].dt.date.unique())
+            
+            # Display metrics
+            ttk.Label(info_frame, text=f"Tasks Completed: {task_count}").grid(row=0, column=0, padx=20)
+            ttk.Label(info_frame, text=f"Average Success Rate: {avg_success:.2f}%").grid(row=0, column=1, padx=20)
+            ttk.Label(info_frame, text=f"Days Worked: {days_worked}").grid(row=0, column=2, padx=20)
+
+    def compare_students(self):
+        """Open a window to select and compare multiple students"""
+        if not self.results_data:
+            self.status_var.set("No student data available for comparison")
+            return
+            
+        # Create comparison window
+        compare_window = tk.Toplevel(self.root)
+        compare_window.title("Compare Students")
+        compare_window.geometry("800x600")
+        
+        # Create frames
+        selection_frame = ttk.Frame(compare_window, padding=10)
+        selection_frame.pack(fill="x")
+        
+        comparison_frame = ttk.Frame(compare_window, padding=10)
+        comparison_frame.pack(fill="both", expand=True)
+        
+        # Create student selection area
+        ttk.Label(selection_frame, text="Select students to compare:", font=("Arial", 11)).grid(row=0, column=0, sticky="w")
+        
+        # Create a listbox with checkboxes for student selection
+        student_list_frame = ttk.Frame(selection_frame)
+        student_list_frame.grid(row=1, column=0, sticky="w", pady=5)
+        
+        # Create scrollable frame for student checkbuttons
+        canvas = tk.Canvas(student_list_frame, width=300, height=150)
+        scrollbar = ttk.Scrollbar(student_list_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(
+                scrollregion=canvas.bbox("all")
+            )
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Student variables for checkbuttons
+        student_vars = {}
+        
+        for i, student in enumerate(self.results_data):
+            student_name = student["Full_Name"]
+            var = tk.BooleanVar(value=False)
+            student_vars[student_name] = var
+            ttk.Checkbutton(scrollable_frame, text=student_name, variable=var).grid(row=i, column=0, sticky="w")
+        
+        # Create comparison options
+        options_frame = ttk.Frame(selection_frame)
+        options_frame.grid(row=1, column=1, sticky="nw", padx=20)
+        
+        ttk.Label(options_frame, text="Compare by:").grid(row=0, column=0, sticky="w")
+        
+        compare_by_var = tk.StringVar(value="Success Rate")
+        compare_options = ttk.Combobox(options_frame, textvariable=compare_by_var, width=15)
+        compare_options['values'] = ["Success Rate", "Tasks Completed", "Days Worked", "Max Streak", "Diagnostics"]
+        compare_options.grid(row=0, column=1, sticky="w", padx=5, pady=5)
+        
+        # Subject selection for comparison
+        subject_var = tk.StringVar(value="All")
+        if hasattr(self, 'subject_dropdown') and len(self.subject_dropdown['values']) > 0:
+            ttk.Label(options_frame, text="Subject:").grid(row=1, column=0, sticky="w")
+            subject_options = ttk.Combobox(options_frame, textvariable=subject_var, width=15)
+            subject_options['values'] = self.subject_dropdown['values']
+            subject_options.grid(row=1, column=1, sticky="w", padx=5, pady=5)
+        
+        # Compare button
+        ttk.Button(selection_frame, text="Compare", 
+                 command=lambda: self.perform_comparison(student_vars, compare_by_var.get(), subject_var.get(), comparison_frame)
+                 ).grid(row=2, column=0, columnspan=2, pady=10)
+        
+        # Initial empty comparison area
+        ttk.Label(comparison_frame, text="Select students and click Compare to see results", 
+                font=("Arial", 11)).pack(pady=20)
+    
+    def perform_comparison(self, student_vars, compare_by, subject, comparison_frame):
+        """Perform the comparison between selected students"""
+        # Clear previous comparison
+        for widget in comparison_frame.winfo_children():
+            widget.destroy()
+            
+        # Get selected students
+        selected_students = [name for name, var in student_vars.items() if var.get()]
+        
+        if len(selected_students) < 2:
+            ttk.Label(comparison_frame, text="Please select at least 2 students to compare", 
+                    font=("Arial", 11, "bold")).pack(pady=20)
+            return
+            
+        # Create a notebook for different comparison views
+        compare_tabs = ttk.Notebook(comparison_frame)
+        compare_tabs.pack(fill="both", expand=True)
+        
+        # Create tabs
+        chart_tab = ttk.Frame(compare_tabs)
+        detail_tab = ttk.Frame(compare_tabs)
+        
+        compare_tabs.add(chart_tab, text="Chart View")
+        compare_tabs.add(detail_tab, text="Detail View")
+        
+        # Prepare data for comparison
+        comparison_data = []
+        
+        for student_name in selected_students:
+            # Find student in results data
+            student = next((s for s in self.results_data if s["Full_Name"] == student_name), None)
+            if student:
+                # Get the student's detailed data
+                if student_name in self.student_full_data:
+                    student_data = self.student_full_data[student_name]
+                    
+                    # Filter by subject if needed
+                    if subject != "All":
+                        student_data = student_data[student_data["Subject"] == subject]
+                        
+                        if len(student_data) == 0:
+                            continue
+                    
+                    # Add to comparison data
+                    comparison_data.append({
+                        "Name": student_name,
+                        "Data": student_data,
+                        "Summary": student
+                    })
+        
+        if not comparison_data:
+            ttk.Label(chart_tab, text="No data available for the selected students and criteria", 
+                    font=("Arial", 11)).pack(pady=20)
+            return
+            
+        # Create comparison chart based on selected criteria
+        fig = Figure(figsize=(8, 6))
+        ax = fig.add_subplot(111)
+        
+        # Prepare data based on comparison type
+        names = [data["Name"] for data in comparison_data]
+        values = []
+        
+        if compare_by == "Success Rate":
+            values = [data["Summary"]["Avg_Success"] for data in comparison_data]
+            label = "Average Success Rate (%)"
+            title = "Success Rate Comparison"
+            
+        elif compare_by == "Tasks Completed":
+            values = [data["Summary"]["Total_Tasks"] for data in comparison_data]
+            label = "Total Tasks Completed"
+            title = "Tasks Completed Comparison"
+            
+        elif compare_by == "Days Worked":
+            values = [data["Summary"]["Days_Worked"] for data in comparison_data]
+            label = "Days Worked"
+            title = "Days Worked Comparison"
+            
+        elif compare_by == "Max Streak":
+            values = [data["Summary"]["Max_Streak"] for data in comparison_data]
+            label = "Maximum Consecutive Days"
+            title = "Max Streak Comparison"
+            
+        elif compare_by == "Diagnostics":
+            values = [data["Summary"].get("Diagnostics_Count", 0) for data in comparison_data]
+            label = "Diagnostics Completed"
+            title = "Diagnostics Comparison"
+        
+        # Create bar chart
+        y_pos = np.arange(len(names))
+        bars = ax.barh(y_pos, values, align='center')
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels(names)
+        ax.invert_yaxis()  # labels read top-to-bottom
+        ax.set_xlabel(label)
+        ax.set_title(title)
+        
+        # Add value labels to bars
+        for i, v in enumerate(values):
+            ax.text(v + 0.1, i, f"{v:.1f}" if isinstance(v, float) else str(v), 
+                   va='center')
+        
+        # Adjust layout
+        fig.tight_layout()
+        
+        # Create canvas with toolbar for zooming
+        canvas = FigureCanvasTkAgg(fig, master=chart_tab)
+        canvas.draw()
+        
+        # Add toolbar with zoom functionality
+        from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk
+        toolbar = NavigationToolbar2Tk(canvas, chart_tab)
+        toolbar.update()
+        canvas.get_tk_widget().pack(fill="both", expand=True)
+        
+        # Create detailed comparison table
+        columns = ["name", compare_by.lower().replace(" ", "_")]
+        table_columns = ["Student", compare_by]
+        
+        # Add subject column if comparing all subjects
+        if subject == "All":
+            columns.append("subjects")
+            table_columns.append("Subjects")
+            
+        # Add additional information columns
+        columns.extend(["grade", "days_worked", "total_tasks"])
+        table_columns.extend(["Grade", "Days Worked", "Total Tasks"])
+        
+        # Create the table
+        detail_tree = ttk.Treeview(detail_tab, columns=columns)
+        detail_tree.heading("#0", text="")
+        
+        for i, col in enumerate(columns):
+            detail_tree.heading(col, text=table_columns[i])
+            detail_tree.column(col, width=100)
+            
+        detail_tree.column("#0", width=0, stretch=tk.NO)
+        detail_tree.column("name", width=180)
+        
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(detail_tab, orient="vertical", command=detail_tree.yview)
+        scrollbar.pack(side="right", fill="y")
+        detail_tree.configure(yscrollcommand=scrollbar.set)
+        detail_tree.pack(fill="both", expand=True)
+        
+        # Populate the table
+        for data in comparison_data:
+            student = data["Summary"]
+            
+            # Prepare row values
+            row_values = [
+                student["Full_Name"],
+                student["Avg_Success"] if compare_by == "Success Rate" else
+                student["Total_Tasks"] if compare_by == "Tasks Completed" else
+                student["Days_Worked"] if compare_by == "Days Worked" else
+                student["Max_Streak"] if compare_by == "Max Streak" else
+                student.get("Diagnostics_Count", 0)
+            ]
+            
+            # Add subject if comparing all
+            if subject == "All":
+                row_values.append(student["Subjects"])
+                
+            # Add additional info
+            row_values.extend([
+                student["Grade"],
+                student["Days_Worked"],
+                student["Total_Tasks"]
+            ])
+            
+            # Insert into table
+            detail_tree.insert("", "end", text="", values=tuple(row_values))
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = StudentAnalysisApp(root)
+    root.mainloop()
