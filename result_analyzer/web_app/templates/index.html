@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Task Analysis</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="{{ url_for('index') }}">Student Analysis</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="{{ url_for('index') }}">Home</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h2 class="card-title mb-0">Student Task Analysis</h2>
+                    </div>
+                    <div class="card-body">
+                        <p class="lead">Upload an Excel file containing student data to begin analysis.</p>
+                        
+                        {% with messages = get_flashed_messages() %}
+                            {% if messages %}
+                                {% for message in messages %}
+                                    <div class="alert alert-info">{{ message }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+                        
+                        <form action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data" class="mt-4">
+                            <div class="mb-3">
+                                <label for="excel_file" class="form-label">Excel File:</label>
+                                <input type="file" class="form-control" id="excel_file" name="excel_file" required accept=".xlsx,.xls">
+                                <div class="form-text">Supported formats: .xlsx, .xls</div>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">Upload & Process Data</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h3 class="card-title mb-0">Expected File Format</h3>
+                    </div>
+                    <div class="card-body">
+                        <p>The Excel file should contain the following headers:</p>
+                        <ul class="small">
+                            <li>Name, Surname, Phone Number, Grade, Parent Number, School, Registration Date</li>
+                            <li>Diagnostic 1 - Accuracy, Diagnostic 2 - Accuracy, etc.</li>
+                            <li>Practice Task, Completion Date, Practice Status, Success/Progress Rate</li>
+                            <li>Practice Task (English), Completion Date (English), Practice Status (English), Success/Progress Rate (English)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="mt-5 text-center text-muted">
+            <p>&copy; 2023 Student Task Analysis System</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+</body>
+</html>
