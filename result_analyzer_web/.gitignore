@@ -31,3 +31,6 @@ logs/
 
 # Local environment variables
 .env
+
+# 
+**/*.lnk
