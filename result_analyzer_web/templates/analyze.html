@@ -61,29 +61,29 @@
             <div class="card-body">
                 {% if students %}
                 <div class="table-responsive">
-                    <table class="table table-striped table-hover">
+                    <table class="table table-striped table-hover" id="studentsTable">
                         <thead>
                             <tr>
-                                <th>Student Name</th>
-                                <th>Grade</th>
-                                <th>Days Worked</th>
-                                <th>Tasks</th>
-                                <th>Diagnostics</th>
-                                <th>Max Streak</th>
-                                <th>Avg Success</th>
+                                <th class="sortable" data-sort="name">Student Name</th>
+                                <th class="sortable" data-sort="grade">Grade</th>
+                                <th class="sortable" data-sort="days">Days Worked</th>
+                                <th class="sortable" data-sort="tasks">Tasks</th>
+                                <th class="sortable" data-sort="diagnostics">Diagnostics</th>
+                                <th class="sortable" data-sort="streak">Max Streak</th>
+                                <th class="sortable" data-sort="success">Avg Success</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for student in students %}
                             <tr>
-                                <td>{{ student.Full_Name }}</td>
-                                <td>{{ student.Grade }}</td>
-                                <td>{{ student.Days_Worked }}</td>
-                                <td>{{ student.Total_Tasks }}</td>
-                                <td>{{ student.Diagnostics_Count }}</td>
-                                <td>{{ student.Max_Streak }}</td>
-                                <td>{{ student.Avg_Success }}</td>
+                                <td data-value="{{ student.Full_Name }}">{{ student.Full_Name }}</td>
+                                <td data-value="{{ student.Grade }}">{{ student.Grade }}</td>
+                                <td data-value="{{ student.Days_Worked }}">{{ student.Days_Worked }}</td>
+                                <td data-value="{{ student.Total_Tasks }}">{{ student.Total_Tasks }}</td>
+                                <td data-value="{{ student.Diagnostics_Count }}">{{ student.Diagnostics_Count }}</td>
+                                <td data-value="{{ student.Max_Streak }}">{{ student.Max_Streak }}</td>
+                                <td data-value="{{ student.Avg_Success }}">{{ student.Avg_Success }}</td>
                                 <td>
                                     <a href="{{ url_for('student_detail', name=student.Full_Name) }}" class="btn btn-sm btn-outline-primary">
                                         Details
@@ -121,4 +121,48 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Table sorting functionality
+    const getCellValue = (tr, idx) => {
+        const cell = tr.children[idx];
+        return cell.getAttribute('data-value') || cell.innerText;
+    };
+    
+    const comparer = (idx, asc) => (a, b) => {
+        // Handle numeric vs string comparison
+        const v1 = getCellValue(asc ? a : b, idx);
+        const v2 = getCellValue(asc ? b : a, idx);
+        
+        // If both values are numeric
+        if (!isNaN(v1) && !isNaN(v2)) {
+            return v1 - v2;
+        }
+        // String comparison
+        return v1.toString().localeCompare(v2);
+    };
+    
+    // Add click event to all sortable headers
+    document.querySelectorAll('#studentsTable th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const table = th.closest('table');
+            const tbody = table.querySelector('tbody');
+            Array.from(tbody.querySelectorAll('tr'))
+                .sort(comparer(Array.from(th.parentNode.children).indexOf(th), 
+                      this.asc = !this.asc))
+                .forEach(tr => tbody.appendChild(tr));
+            
+            // Visual indicator of sort direction
+            const allHeaders = table.querySelectorAll('th');
+            allHeaders.forEach(header => {
+                header.classList.remove('sort-asc', 'sort-desc');
+            });
+            th.classList.add(this.asc ? 'sort-asc' : 'sort-desc');
+        });
+    });
+});
+</script>
 {% endblock %}
