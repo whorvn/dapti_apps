@@ -7,6 +7,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import os
 import numpy as np
 import matplotlib.dates as mdates
+from matplotlib.figure import Figure
 
 class StudentAnalysisApp:
     def __init__(self, root):
@@ -54,6 +55,9 @@ class StudentAnalysisApp:
         # Export button
         ttk.Button(self.filter_frame, text="Export Results", command=self.export_results).grid(row=1, column=8, padx=10, pady=5)
         
+        # Add Compare button in filter frame
+        ttk.Button(self.filter_frame, text="Compare Students", command=self.compare_students).grid(row=1, column=7, padx=10, pady=5)
+        
         # Results area with tabs
         self.tabs = ttk.Notebook(self.result_frame)
         self.tabs.pack(fill="both", expand=True)
@@ -63,23 +67,29 @@ class StudentAnalysisApp:
         self.tabs.add(self.results_tab, text="Results")
         self.tabs.add(self.chart_tab, text="Charts")
         
-        # Results table - updated columns to include total tasks
-        self.results_tree = ttk.Treeview(self.results_tab, columns=("name", "days_worked", "total_tasks", "max_streak", "avg_success", "completion_dates"))
+        # Results table - updated columns: removed completion_dates, added diagnostics_count, phone, grade
+        self.results_tree = ttk.Treeview(self.results_tab, 
+                                         columns=("name", "phone", "grade", "days_worked", "total_tasks", 
+                                                 "diagnostics_count", "max_streak", "avg_success"))
         self.results_tree.heading("#0", text="ID")
         self.results_tree.heading("name", text="Student Name")
+        self.results_tree.heading("phone", text="Phone Number")
+        self.results_tree.heading("grade", text="Grade")
         self.results_tree.heading("days_worked", text="Days Worked")
         self.results_tree.heading("total_tasks", text="Total Tasks")
+        self.results_tree.heading("diagnostics_count", text="Diagnostics")
         self.results_tree.heading("max_streak", text="Max Streak")
         self.results_tree.heading("avg_success", text="Avg Success Rate")
-        self.results_tree.heading("completion_dates", text="Completion Dates")
         
         self.results_tree.column("#0", width=40)
         self.results_tree.column("name", width=180)
+        self.results_tree.column("phone", width=100)
+        self.results_tree.column("grade", width=60)
         self.results_tree.column("days_worked", width=80)
         self.results_tree.column("total_tasks", width=80)
+        self.results_tree.column("diagnostics_count", width=80)
         self.results_tree.column("max_streak", width=80)
         self.results_tree.column("avg_success", width=100)
-        self.results_tree.column("completion_dates", width=200)
         
         self.results_tree.pack(fill="both", expand=True)
         
@@ -145,119 +155,89 @@ class StudentAnalysisApp:
             # Process the multi-subject format
             transformed_data = []
             
-            # Identify all subject columns in the data
-            subject_patterns = {}
+            # Identify diagnostic columns
+            diagnostic_cols = [col for col in self.df.columns if 'Diagnostic' in str(col) and 'Accuracy' in str(col)]
             
-            # First identify the base columns (without subject)
-            base_cols = []
-            subject_cols = {}
-            diagnostic_cols = []
-            
-            for col in self.df.columns:
-                col_str = str(col).strip()
-                
-                # Collect diagnostic columns separately
-                if "Diagnostic" in col_str:
-                    diagnostic_cols.append(col)
-                    continue
-                    
-                # Check if this is a subject-specific column
-                subject_match = None
-                if "(" in col_str and ")" in col_str:
-                    # Extract subject name from parentheses
-                    subject_name = col_str[col_str.find("(")+1:col_str.find(")")]
-                    base_col_name = col_str[:col_str.find("(")].strip()
-                    
-                    # Initialize subject pattern if not seen before
-                    if subject_name not in subject_patterns:
-                        subject_patterns[subject_name] = {}
-                    
-                    # Store the column mapping
-                    subject_patterns[subject_name][base_col_name] = col
-                    
-                    # Track subject columns
-                    if subject_name not in subject_cols:
-                        subject_cols[subject_name] = []
-                    subject_cols[subject_name].append(col)
-                else:
-                    # This is a base column
-                    base_cols.append(col)
-            
-            # Add "Math" as default subject if we find Practice Task without parentheses
-            default_subject_cols = {}
-            for col in base_cols:
-                col_str = str(col).strip()
-                if col_str in ["Practice Task", "Completion Date", "Practice Status", "Success/Progress Rate"]:
-                    if "Math" not in subject_patterns:
-                        subject_patterns["Math"] = {}
-                    subject_patterns["Math"][col_str] = col
-                    default_subject_cols[col_str] = col
-                    
-            if default_subject_cols:
-                subject_cols["Math"] = list(default_subject_cols.values())
-            
-            print("Detected subjects:", list(subject_patterns.keys()))
-            print("Subject columns:", subject_cols)
-            
-            # Create a base DataFrame with student info - excluding subject columns
-            excluded_cols = []
-            for subject in subject_cols:
-                excluded_cols.extend(subject_cols[subject])
-            
-            base_df_cols = [col for col in self.df.columns if col not in excluded_cols and "Practice" not in str(col) and "Success" not in str(col) and "Completion" not in str(col)]
+            # Define main task column groups - match exactly provided format
+            task_columns = {
+                "Math": {
+                    "Practice Task": "Practice Task",
+                    "Completion Date": "Completion Date",
+                    "Practice Status": "Practice Status",
+                    "Success/Progress Rate": "Success/Progress Rate"
+                },
+                "English": {
+                    "Practice Task": "Practice Task (English)",
+                    "Completion Date": "Completion Date (English)",
+                    "Practice Status": "Practice Status (English)",
+                    "Success/Progress Rate": "Success/Progress Rate (English)"
+                }
+            }
             
             # Process each row in the DataFrame
             for idx, row in self.df.iterrows():
-                # Process each subject's columns
-                for subject, pattern in subject_patterns.items():
-                    # Check if we have all necessary columns for this subject
-                    if not all(k in pattern for k in ["Practice Task", "Completion Date", "Practice Status", "Success/Progress Rate"]):
-                        print(f"Missing required columns for subject {subject}")
+                student_data = {
+                    "Name": row.get("Name", ""),
+                    "Surname": row.get("Surname", ""),
+                    "Phone": row.get("Phone Number", ""),
+                    "Grade": row.get("Grade", ""),
+                    "Parent_Number": row.get("Parent Number", ""),
+                    "School": row.get("School", ""),
+                    "Registration_Date": row.get("Registration Date")
+                }
+                
+                # Extract diagnostic values
+                diagnostics = {}
+                for col in diagnostic_cols:
+                    if pd.notna(row.get(col)):
+                        diag_name = str(col).replace(" - Accuracy", "").strip()
+                        diag_value = row.get(col)
+                        if isinstance(diag_value, (int, float)) or (isinstance(diag_value, str) and diag_value.strip()):
+                            diagnostics[diag_name] = diag_value
+                
+                # Process each subject
+                for subject, columns in task_columns.items():
+                    task_col = columns["Practice Task"]
+                    date_col = columns["Completion Date"]
+                    status_col = columns["Practice Status"]
+                    rate_col = columns["Success/Progress Rate"]
+                    
+                    # Check if the subject columns exist in the dataframe
+                    if not all(col in self.df.columns for col in columns.values()):
+                        print(f"Skipping subject {subject}, missing required columns")
                         continue
-                        
-                    task_col = pattern["Practice Task"]
-                    date_col = pattern["Completion Date"]
-                    status_col = pattern["Practice Status"]
-                    rate_col = pattern["Success/Progress Rate"]
                     
                     # Skip if no task or "Not Started"
                     if pd.isna(row.get(task_col)) or row.get(task_col) == "Not Started":
                         continue
-                        
+                    
                     # Create a record for this task
                     task_record = {
-                        "Name": row.get("Name", ""),
-                        "Surname": row.get("Surname", ""),
-                        "Phone": row.get("Phone Number", ""),
-                        "Registration_Date": row.get("Registration Date"),
+                        **student_data,  # Include all student data
                         "Subject": subject,
                         "Task": row.get(task_col, ""),
                         "Completion_Date": row.get(date_col),
                         "Status": row.get(status_col, ""),
-                        "Success_Rate": self._parse_rate(row.get(rate_col))
+                        "Success_Rate": self._parse_rate(row.get(rate_col)),
+                        "Diagnostics": diagnostics
                     }
                     
-                    # Add any diagnostic scores if available
-                    for diag_col in diagnostic_cols:
-                        if not pd.isna(row.get(diag_col)):
-                            diag_name = str(diag_col).replace(" - Accuracy", "")
-                            task_record[diag_name] = row.get(diag_col)
-                    
                     transformed_data.append(task_record)
-                    
+            
             # Convert the transformed data to a DataFrame
             if transformed_data:
                 self.df = pd.DataFrame(transformed_data)
                 print("Transformed columns:", self.df.columns.tolist())
                 
                 # Add subject filter to the GUI
-                self.add_subject_filter(self.df["Subject"].unique())
+                if "Subject" in self.df.columns:
+                    self.add_subject_filter(self.df["Subject"].unique())
             else:
                 self.status_var.set("No task data found in the file. Check the format.")
                 return
             
             # Convert Success_Rate to numeric, handling all possible formats
-            if self.df["Success_Rate"].dtype == object:  # If it's a string or mixed type
+            if "Success_Rate" in self.df.columns and self.df["Success_Rate"].dtype == object:
                 # Replace any non-numeric values with '0'
                 self.df["Success_Rate"] = self.df["Success_Rate"].astype(str).replace('Not Started', '0')
                 self.df["Success_Rate"] = self.df["Success_Rate"].astype(str).replace('', '0')
@@ -267,21 +247,24 @@ class StudentAnalysisApp:
                 self.df["Success_Rate"] = pd.to_numeric(self.df["Success_Rate"], errors='coerce')
             
             # Fill any NaN values with 0
-            self.df["Success_Rate"].fillna(0, inplace=True)
+            if "Success_Rate" in self.df.columns:
+                self.df["Success_Rate"].fillna(0, inplace=True)
             
             # Convert dates to datetime with explicit format
-            try:
-                self.df["Completion_Date"] = pd.to_datetime(self.df["Completion_Date"], errors='coerce')
-            except:
-                self.status_var.set("Warning: Some dates couldn't be parsed correctly")
+            if "Completion_Date" in self.df.columns:
+                try:
+                    self.df["Completion_Date"] = pd.to_datetime(self.df["Completion_Date"], errors='coerce')
+                except:
+                    self.status_var.set("Warning: Some dates couldn't be parsed correctly")
             
             # Create full name column
             self.df["Full_Name"] = self.df["Name"] + " " + self.df["Surname"]
             
             self.status_var.set(f"Data loaded successfully. {len(self.df)} records found.")
             # Print column types for debugging
-            print("Success_Rate column type:", self.df["Success_Rate"].dtype)
-            print("First few values:", self.df["Success_Rate"].head())
+            if "Success_Rate" in self.df.columns:
+                print("Success_Rate column type:", self.df["Success_Rate"].dtype)
+                print("First few values:", self.df["Success_Rate"].head())
             
         except Exception as e:
             self.status_var.set(f"Error loading data: {str(e)}")
@@ -410,8 +393,15 @@ class StudentAnalysisApp:
                     # Calculate max streak (consecutive days)
                     max_streak = self.calculate_max_streak(completion_dates)
                     
-                    # Format dates for display
-                    dates_str = ", ".join([date.strftime("%Y-%m-%d") for date in completion_dates])
+                    # Get first record for student info
+                    first_record = group.iloc[0]
+                    
+                    # Count diagnostic tests completed
+                    diagnostics_count = 0
+                    if 'Diagnostics' in group.columns and len(group) > 0:
+                        # Get the first record's diagnostics dict (they should all be the same)
+                        if isinstance(first_record['Diagnostics'], dict):
+                            diagnostics_count = len(first_record['Diagnostics'])
                     
                     # Get unique subjects for this student
                     subjects = sorted(group["Subject"].unique())
@@ -419,12 +409,14 @@ class StudentAnalysisApp:
                     
                     student_summaries.append({
                         "Full_Name": student_name,
+                        "Phone": first_record.get("Phone", ""),
+                        "Grade": first_record.get("Grade", ""),
                         "Days_Worked": days_worked,
                         "Total_Tasks": total_tasks,
+                        "Diagnostics_Count": diagnostics_count,
                         "Max_Streak": max_streak,
                         "Avg_Success": avg_success,
-                        "Subjects": subjects_str,
-                        "Completion_Dates": dates_str
+                        "Subjects": subjects_str
                     })
                     
                     # Store full student data for detailed view
@@ -441,12 +433,14 @@ class StudentAnalysisApp:
             if student_summaries:
                 for idx, student in enumerate(student_summaries):
                     self.results_tree.insert("", "end", text=str(idx+1), 
-                                           values=(student["Full_Name"], 
+                                           values=(student["Full_Name"],
+                                                  student["Phone"],
+                                                  student["Grade"],
                                                   student["Days_Worked"],
                                                   student["Total_Tasks"],
+                                                  student["Diagnostics_Count"],
                                                   student["Max_Streak"],
-                                                  f"{student['Avg_Success']:.2f}%",
-                                                  student["Completion_Dates"]))
+                                                  f"{student['Avg_Success']:.2f}%"))
                 
                 # Create chart with the results
                 self.create_chart(student_summaries)
@@ -506,16 +500,25 @@ class StudentAnalysisApp:
         detail_tabs.pack(fill="both", expand=True)
         
         # Create tabs
+        profile_tab = ttk.Frame(detail_tabs)  # New profile tab
         timeline_tab = ttk.Frame(detail_tabs)
         tasks_tab = ttk.Frame(detail_tabs)
         progress_tab = ttk.Frame(detail_tabs)
+        diagnostics_tab = ttk.Frame(detail_tabs)
+        multi_subject_tab = ttk.Frame(detail_tabs)  # New multi-subject tab
         
+        detail_tabs.add(profile_tab, text="Profile")  # Added first
         detail_tabs.add(timeline_tab, text="Timeline")
         detail_tabs.add(tasks_tab, text="Tasks")
         detail_tabs.add(progress_tab, text="Progress")
+        detail_tabs.add(diagnostics_tab, text="Diagnostics")
+        detail_tabs.add(multi_subject_tab, text="Subject Comparison")
         
         # Get student data
         student_data = self.student_full_data[student_name]
+        
+        # Create comprehensive profile view
+        self.create_profile_view(profile_tab, student_data)
         
         # Create timeline view showing all days from first task to today
         self.create_timeline_view(timeline_tab, student_data)
@@ -525,7 +528,139 @@ class StudentAnalysisApp:
         
         # Create progress charts
         self.create_progress_charts(progress_tab, student_data)
-    
+        
+        # Create diagnostics view
+        self.create_diagnostics_view(diagnostics_tab, student_data)
+        
+        # Create multi-subject comparison view
+        self.create_multi_subject_view(multi_subject_tab, student_data)
+
+    def create_profile_view(self, parent, student_data):
+        """Create a comprehensive profile view showing all student information"""
+        # Get first row for student info - all records should have same student info
+        student_info = student_data.iloc[0]
+        
+        # Create a frame with some padding
+        main_frame = ttk.Frame(parent, padding=20)
+        main_frame.pack(fill="both", expand=True)
+        
+        # Create header with student name
+        full_name = student_info.get("Full_Name", "Unknown Student")
+        header_label = ttk.Label(main_frame, text=full_name, font=("Arial", 16, "bold"))
+        header_label.pack(anchor="w", pady=(0, 20))
+        
+        # Create info sections
+        info_frame = ttk.Frame(main_frame)
+        info_frame.pack(fill="x", expand=False)
+        
+        # Personal Information Section
+        personal_frame = ttk.LabelFrame(info_frame, text="Personal Information", padding=10)
+        personal_frame.grid(row=0, column=0, sticky="nw", padx=5, pady=5)
+        
+        # Personal info details
+        ttk.Label(personal_frame, text="First Name:").grid(row=0, column=0, sticky="w", pady=2)
+        ttk.Label(personal_frame, text=student_info.get("Name", "")).grid(row=0, column=1, sticky="w", padx=10)
+        
+        ttk.Label(personal_frame, text="Last Name:").grid(row=1, column=0, sticky="w", pady=2)
+        ttk.Label(personal_frame, text=student_info.get("Surname", "")).grid(row=1, column=1, sticky="w", padx=10)
+        
+        ttk.Label(personal_frame, text="Phone:").grid(row=2, column=0, sticky="w", pady=2)
+        ttk.Label(personal_frame, text=student_info.get("Phone", "")).grid(row=2, column=1, sticky="w", padx=10)
+        
+        ttk.Label(personal_frame, text="Grade:").grid(row=3, column=0, sticky="w", pady=2)
+        ttk.Label(personal_frame, text=student_info.get("Grade", "")).grid(row=3, column=1, sticky="w", padx=10)
+        
+        # Academic Information Section
+        academic_frame = ttk.LabelFrame(info_frame, text="Academic Information", padding=10)
+        academic_frame.grid(row=0, column=1, sticky="nw", padx=5, pady=5)
+        
+        ttk.Label(academic_frame, text="School:").grid(row=0, column=0, sticky="w", pady=2)
+        ttk.Label(academic_frame, text=student_info.get("School", "")).grid(row=0, column=1, sticky="w", padx=10)
+        
+        ttk.Label(academic_frame, text="Registration Date:").grid(row=1, column=0, sticky="w", pady=2)
+        reg_date = student_info.get("Registration_Date", "")
+        if hasattr(reg_date, 'strftime'):
+            reg_date = reg_date.strftime("%Y-%m-%d")
+        ttk.Label(academic_frame, text=reg_date).grid(row=1, column=1, sticky="w", padx=10)
+        
+        ttk.Label(academic_frame, text="Subjects:").grid(row=2, column=0, sticky="w", pady=2)
+        subjects = ", ".join(sorted(student_data["Subject"].unique()))
+        ttk.Label(academic_frame, text=subjects).grid(row=2, column=1, sticky="w", padx=10)
+        
+        # Contact Information Section
+        contact_frame = ttk.LabelFrame(info_frame, text="Contact Information", padding=10)
+        contact_frame.grid(row=1, column=0, sticky="nw", padx=5, pady=5)
+        
+        ttk.Label(contact_frame, text="Parent Number:").grid(row=0, column=0, sticky="w", pady=2)
+        ttk.Label(contact_frame, text=student_info.get("Parent_Number", "")).grid(row=0, column=1, sticky="w", padx=10)
+        
+        # Performance Summary Section
+        performance_frame = ttk.LabelFrame(info_frame, text="Performance Summary", padding=10)
+        performance_frame.grid(row=1, column=1, sticky="nw", padx=5, pady=5)
+        
+        # Calculate performance metrics
+        completion_dates = sorted(student_data["Completion_Date"].dt.date.unique())
+        days_worked = len(completion_dates)
+        total_tasks = len(student_data)
+        avg_success = student_data["Success_Rate"].mean()
+        max_streak = self.calculate_max_streak(completion_dates)
+        
+        # Count diagnostic tests
+        diagnostics_count = 0
+        if 'Diagnostics' in student_data.columns and len(student_data) > 0:
+            # Get the first record's diagnostics dict (they should all be the same)
+            if isinstance(student_info.get('Diagnostics'), dict):
+                diagnostics_count = len(student_info.get('Diagnostics', {}))
+        
+        ttk.Label(performance_frame, text="Days Worked:").grid(row=0, column=0, sticky="w", pady=2)
+        ttk.Label(performance_frame, text=str(days_worked)).grid(row=0, column=1, sticky="w", padx=10)
+        
+        ttk.Label(performance_frame, text="Total Tasks:").grid(row=1, column=0, sticky="w", pady=2)
+        ttk.Label(performance_frame, text=str(total_tasks)).grid(row=1, column=1, sticky="w", padx=10)
+        
+        ttk.Label(performance_frame, text="Diagnostics:").grid(row=2, column=0, sticky="w", pady=2)
+        ttk.Label(performance_frame, text=str(diagnostics_count)).grid(row=2, column=1, sticky="w", padx=10)
+        
+        ttk.Label(performance_frame, text="Max Streak:").grid(row=3, column=0, sticky="w", pady=2)
+        ttk.Label(performance_frame, text=str(max_streak)).grid(row=3, column=1, sticky="w", padx=10)
+        
+        ttk.Label(performance_frame, text="Avg Success Rate:").grid(row=4, column=0, sticky="w", pady=2)
+        ttk.Label(performance_frame, text=f"{avg_success:.2f}%").grid(row=4, column=1, sticky="w", padx=10)
+        
+        # Recent Activity Section
+        activity_frame = ttk.LabelFrame(main_frame, text="Recent Activity", padding=10)
+        activity_frame.pack(fill="x", expand=False, pady=10)
+        
+        # Get the 5 most recent tasks
+        recent_tasks = student_data.sort_values("Completion_Date", ascending=False).head(5)
+        
+        # Create a mini table for recent activity
+        columns = ("date", "subject", "task", "success_rate")
+        recent_tree = ttk.Treeview(activity_frame, columns=columns, height=5)
+        recent_tree.heading("#0", text="")
+        recent_tree.heading("date", text="Date")
+        recent_tree.heading("subject", text="Subject")
+        recent_tree.heading("task", text="Task")
+        recent_tree.heading("success_rate", text="Success Rate")
+        
+        recent_tree.column("#0", width=0, stretch=tk.NO)
+        recent_tree.column("date", width=120)
+        recent_tree.column("subject", width=100)
+        recent_tree.column("task", width=300)
+        recent_tree.column("success_rate", width=100)
+        
+        recent_tree.pack(fill="x", expand=True)
+        
+        # Populate recent activity
+        for _, row in recent_tasks.iterrows():
+            date_str = row["Completion_Date"].strftime("%Y-%m-%d")
+            recent_tree.insert("", "end", text="", values=(
+                date_str,
+                row["Subject"],
+                row["Task"],
+                f"{row['Success_Rate']:.2f}%"
+            ))
+
     def create_timeline_view(self, parent, student_data):
         """Create a timeline view showing all dates and tasks completed on each date"""
         # Frame for filter and controls
@@ -861,7 +996,212 @@ class StudentAnalysisApp:
         subjects_list = ["All"] + sorted(list(subjects))
         self.subject_dropdown['values'] = subjects_list
 
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = StudentAnalysisApp(root)
-    root.mainloop()
+    def create_diagnostics_view(self, parent, student_data):
+        """Create a view for displaying diagnostic test results"""
+        # Extract diagnostic data
+        diagnostics = student_data.iloc[0].get("Diagnostics", {})
+        
+        if not diagnostics:
+            ttk.Label(parent, text="No diagnostic data available.", font=("Arial", 12)).pack(pady=20)
+            return
+        
+        # Create main frame with scroll capability
+        main_frame = ttk.Frame(parent)
+        main_frame.pack(fill="both", expand=True)
+        
+        # Create canvas with scrollbar for diagnostics view
+        canvas = tk.Canvas(main_frame)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(
+                scrollregion=canvas.bbox("all")
+            )
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Create a frame for the diagnostics summary
+        summary_frame = ttk.Frame(scrollable_frame, padding=10)
+        summary_frame.pack(fill="x", padx=10, pady=10)
+        
+        # Calculate average diagnostic score
+        diagnostic_scores = list(diagnostics.values())
+        if diagnostic_scores:
+            try:
+                # Convert to numeric if they're strings
+                numeric_scores = []
+                for score in diagnostic_scores:
+                    if isinstance(score, (int, float)):
+                        numeric_scores.append(float(score))
+                    elif isinstance(score, str) and score.replace('.', '', 1).isdigit():
+                        numeric_scores.append(float(score))
+                
+                if numeric_scores:
+                    avg_score = sum(numeric_scores) / len(numeric_scores)
+                    ttk.Label(summary_frame, 
+                            text=f"Diagnostic Tests Completed: {len(diagnostics)} | Average Score: {avg_score:.2f}%",
+                            font=("Arial", 11, "bold")).pack(anchor="w")
+                else:
+                    ttk.Label(summary_frame,
+                            text=f"Diagnostic Tests Completed: {len(diagnostics)} | Scores not numeric",
+                            font=("Arial", 11, "bold")).pack(anchor="w")
+            except:
+                ttk.Label(summary_frame,
+                            text=f"Diagnostic Tests Completed: {len(diagnostics)} | Error calculating average score",
+                            font=("Arial", 11, "bold")).pack(anchor="w")
+        
+        # Create a frame for the diagnostics table
+        table_frame = ttk.Frame(scrollable_frame, padding="5")
+        table_frame.pack(fill="both", expand=True)
+        
+        # Create diagnostics treeview
+        columns = ("test", "score")
+        diagnostics_tree = ttk.Treeview(table_frame, columns=columns)
+        diagnostics_tree.heading("#0", text="")
+        diagnostics_tree.heading("test", text="Diagnostic Test")
+        diagnostics_tree.heading("score", text="Score")
+        
+        diagnostics_tree.column("#0", width=0, stretch=tk.NO)
+        diagnostics_tree.column("test", width=200)
+        diagnostics_tree.column("score", width=100)
+        
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=diagnostics_tree.yview)
+        scrollbar.pack(side="right", fill="y")
+        diagnostics_tree.configure(yscrollcommand=scrollbar.set)
+        diagnostics_tree.pack(fill="both", expand=True)
+        
+        # Populate the diagnostics table
+        for test, score in diagnostics.items():
+            diagnostics_tree.insert("", "end", text="", values=(test, score))
+        
+        # Create a figure for diagnostic scores
+        fig = Figure(figsize=(8, 4))
+        ax = fig.add_subplot(111)
+        
+        # Bar chart for diagnostic scores
+        tests = list(diagnostics.keys())
+        scores = list(diagnostics.values())
+        ax.bar(tests, scores, color='blue', alpha=0.7)
+        
+        ax.set_title('Diagnostic Test Scores')
+        ax.set_ylabel('Score')
+        ax.set_ylim(0, 100)  # Assuming scores are out of 100
+        ax.grid(True, linestyle='--', alpha=0.7, axis='y')
+        
+        # Rotate x-axis labels for better readability
+        plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+        
+        # Adjust layout
+        fig.tight_layout()
+        
+        # Create canvas
+        canvas = FigureCanvasTkAgg(fig, master=parent)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True)
+
+    def create_multi_subject_view(self, parent, student_data):
+        """Create a view comparing progress across different subjects"""
+        subjects = sorted(student_data["Subject"].unique())
+        
+        if len(subjects) <= 1:
+            ttk.Label(parent, text="Multiple subjects are required for comparison.", font=("Arial", 12)).pack(pady=20)
+            return
+            
+        # Create a frame for the comparison
+        main_frame = ttk.Frame(parent, padding=10)
+        main_frame.pack(fill="both", expand=True)
+        
+        # Create header
+        ttk.Label(main_frame, text="Subject Comparison", font=("Arial", 14, "bold")).pack(pady=(0, 10))
+        
+        # Create notebook for subject views
+        subject_tabs = ttk.Notebook(main_frame)
+        subject_tabs.pack(fill="both", expand=True)
+        
+        # Create overview tab for side-by-side comparison
+        overview_tab = ttk.Frame(subject_tabs)
+        subject_tabs.add(overview_tab, text="Overview")
+        
+        # Overall subject comparison chart
+        fig1 = Figure(figsize=(8, 6))
+        ax1 = fig1.add_subplot(111)
+        
+        # Calculate subject metrics
+        subject_metrics = []
+        
+        for subject in subjects:
+            subject_data = student_data[student_data["Subject"] == subject]
+            
+            # Calculate metrics
+            task_count = len(subject_data)
+            avg_success = subject_data["Success_Rate"].mean()
+            days_worked = len(subject_data["Completion_Date"].dt.date.unique())
+            
+            subject_metrics.append({
+                "Subject": subject,
+                "Tasks": task_count,
+                "Success": avg_success,
+                "Days": days_worked
+            })
+        
+        # Create bar chart comparing subjects
+        x = np.arange(len(subjects))
+        width = 0.25
+        
+        # Extract metrics for plotting
+        tasks = [metric["Tasks"] for metric in subject_metrics]
+        success = [metric["Success"] for metric in subject_metrics]
+        days = [metric["Days"] for metric in subject_metrics]
+        
+        # Plot bars
+        ax1.bar(x - width, tasks, width, label='Tasks Completed')
+        ax1.bar(x, success, width, label='Avg Success Rate (%)')
+        ax1.bar(x + width, days, width, label='Days Worked')
+        
+        # Add labels and legend
+        ax1.set_xlabel('Subject')
+        ax1.set_ylabel('Value')
+        ax1.set_title('Subject Comparison')
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(subjects)
+        ax1.legend()
+        
+        # Adjust layout
+        fig1.tight_layout()
+        
+        # Create canvas for overview tab
+        canvas1 = FigureCanvasTkAgg(fig1, master=overview_tab)
+        canvas1.draw()
+        canvas1.get_tk_widget().pack(fill="both", expand=True)
+        
+        # Create toolbar with zoom functionality
+        from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk
+        toolbar = NavigationToolbar2Tk(canvas1, overview_tab)
+        toolbar.update()
+        canvas1.get_tk_widget().pack(fill="both", expand=True)
+        
+        # Create individual tabs for each subject
+        for subject in subjects:
+            subject_tab = ttk.Frame(subject_tabs)
+            subject_tabs.add(subject_tab, text=subject)
+            
+            # Filter data for this subject
+            subject_data_filtered = student_data[student_data["Subject"] == subject]
+            
+            # Create a figure for this subject
+            fig = Figure(figsize=(8, 6))
+            ax = fig.add_subplot(111)
+            
+            # Group by date
+            daily_data = subject_data_filtered.groupby(subject_data_filtered["Completion_Date"].dt.date).agg({
+                "Success_Rate": "mean"
+            }).reset_index()
+            
