@@ -1,0 +1,305 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ student.Full_Name }} - Student Profile{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <h2 class="me-auto">Student Profile: {{ student.Full_Name }}</h2>
+    <a href="{{ url_for('analyze') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Results
+    </a>
+</div>
+
+<!-- Nav tabs -->
+<ul class="nav nav-tabs nav-fill mb-4" id="studentTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile" 
+                type="button" role="tab" aria-controls="profile" aria-selected="true">Profile</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="timeline-tab" data-bs-toggle="tab" data-bs-target="#timeline" 
+                type="button" role="tab" aria-controls="timeline" aria-selected="false">Timeline</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tasks-tab" data-bs-toggle="tab" data-bs-target="#tasks" 
+                type="button" role="tab" aria-controls="tasks" aria-selected="false">Tasks</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="progress-tab" data-bs-toggle="tab" data-bs-target="#progress" 
+                type="button" role="tab" aria-controls="progress" aria-selected="false">Progress</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="diagnostics-tab" data-bs-toggle="tab" data-bs-target="#diagnostics" 
+                type="button" role="tab" aria-controls="diagnostics" aria-selected="false">Diagnostics</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="subjects-tab" data-bs-toggle="tab" data-bs-target="#subjects" 
+                type="button" role="tab" aria-controls="subjects" aria-selected="false">Subjects</button>
+    </li>
+</ul>
+
+<!-- Tab content -->
+<div class="tab-content">
+    <!-- Profile Tab -->
+    <div class="tab-pane fade show active" id="profile" role="tabpanel" aria-labelledby="profile-tab">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card shadow mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Personal Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-2">
+                            <div class="col-sm-4 fw-bold">First Name:</div>
+                            <div class="col-sm-8">{{ profile.personal_info.first_name }}</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-sm-4 fw-bold">Last Name:</div>
+                            <div class="col-sm-8">{{ profile.personal_info.last_name }}</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-sm-4 fw-bold">Phone:</div>
+                            <div class="col-sm-8">{{ profile.personal_info.phone }}</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-sm-4 fw-bold">Grade:</div>
+                            <div class="col-sm-8">{{ profile.personal_info.grade }}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card shadow mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">Academic Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-2">
+                            <div class="col-sm-4 fw-bold">School:</div>
+                            <div class="col-sm-8">{{ profile.academic_info.school }}</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-sm-4 fw-bold">Registration:</div>
+                            <div class="col-sm-8">{{ profile.academic_info.registration_date }}</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-sm-4 fw-bold">Subjects:</div>
+                            <div class="col-sm-8">{{ profile.academic_info.subjects }}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card shadow mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">Contact Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-2">
+                            <div class="col-sm-4 fw-bold">Parent Number:</div>
+                            <div class="col-sm-8">{{ profile.contact_info.parent_number }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card shadow mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Performance Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-2">
+                            <div class="col-sm-6 fw-bold">Days Worked:</div>
+                            <div class="col-sm-6">{{ profile.performance.days_worked }}</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-sm-6 fw-bold">Total Tasks:</div>
+                            <div class="col-sm-6">{{ profile.performance.total_tasks }}</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-sm-6 fw-bold">Diagnostics Completed:</div>
+                            <div class="col-sm-6">{{ profile.performance.diagnostics_count }}</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-sm-6 fw-bold">Max Streak:</div>
+                            <div class="col-sm-6">{{ profile.performance.max_streak }}</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-sm-6 fw-bold">Average Success Rate:</div>
+                            <div class="col-sm-6">{{ profile.performance.avg_success }}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card shadow">
+                    <div class="card-header bg-warning">
+                        <h5 class="mb-0">Recent Activity</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Subject</th>
+                                        <th>Task</th>
+                                        <th>Success</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for activity in profile.recent_activity %}
+                                    <tr>
+                                        <td>{{ activity.date }}</td>
+                                        <td>{{ activity.subject }}</td>
+                                        <td>{{ activity.task }}</td>
+                                        <td>{{ activity.success_rate }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Timeline Tab -->
+    <div class="tab-pane fade" id="timeline" role="tabpanel" aria-labelledby="timeline-tab">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Activity Timeline</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>Subjects</th>
+                                <th>Tasks Completed</th>
+                                <th>Avg Success Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for day in timeline_data %}
+                            <tr {% if day.has_task %}class="has-task"{% endif %}>
+                                <td>{{ day.date }}</td>
+                                <td>{{ day.subjects }}</td>
+                                <td>{{ day.tasks_count }}</td>
+                                <td>{{ day.avg_success }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tasks Tab -->
+    <div class="tab-pane fade" id="tasks" role="tabpanel" aria-labelledby="tasks-tab">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Tasks</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>Subject</th>
+                                <th>Task</th>
+                                <th>Success Rate</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for task in tasks_data %}
+                            <tr class="{{ task.success_class }}">
+                                <td>{{ task.date }}</td>
+                                <td>{{ task.subject }}</td>
+                                <td>{{ task.task }}</td>
+                                <td>{{ task.success_rate }}</td>
+                                <td>{{ task.status }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Tab -->
+    <div class="tab-pane fade" id="progress" role="tabpanel" aria-labelledby="progress-tab">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Progress Charts</h5>
+            </div>
+            <div class="card-body">
+                {% if progress_charts %}
+                <img src="{{ progress_charts }}" class="img-fluid" alt="Progress Charts">
+                {% else %}
+                <div class="alert alert-info">No progress data available for charting.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Diagnostics Tab -->
+    <div class="tab-pane fade" id="diagnostics" role="tabpanel" aria-labelledby="diagnostics-tab">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Diagnostic Tests</h5>
+            </div>
+            <div class="card-body">
+                {% if diagnostics_data.has_data %}
+                <div class="alert alert-info mb-4">
+                    <strong>Diagnostic Tests Completed:</strong> {{ diagnostics_data.count }}
+                    {% if diagnostics_data.avg_score != "N/A" %}
+                    | <strong>Average Score:</strong> {{ diagnostics_data.avg_score }}
+                    {% endif %}
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Test Name</th>
+                                <th>Score</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for test in diagnostics_data.tests %}
+                            <tr>
+                                <td>{{ test.test }}</td>
+                                <td>{{ test.score }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">No diagnostic test data available.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Subjects Tab -->
+    <div class="tab-pane fade" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Subject Comparison</h5>
+            </div>
+            <div class="card-body">
+                {% if subject_comparison %}
+                <img src="{{ subject_comparison }}" class="img-fluid" alt="Subject Comparison">
+                {% else %}
+                <div class="alert alert-info">Multiple subjects required for comparison.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

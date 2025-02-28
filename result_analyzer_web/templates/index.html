@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block title %}Upload - Student Task Analysis{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 col-lg-8 mx-auto">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Upload Student Data File</h4>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('upload_file') }}" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Choose Excel or CSV File:</label>
+                        <input type="file" class="form-control" id="file" name="file" required 
+                               accept=".xlsx,.xls,.csv">
+                    </div>
+                    <div class="mb-3">
+                        <div class="text-muted">
+                            <p>Supported file formats: Excel (.xlsx, .xls) and CSV (.csv)</p>
+                            <p>Your file should contain the following columns:</p>
+                            <ul>
+                                <li>Student information (Name, Surname, Grade, etc.)</li>
+                                <li>Subject task information (Practice Task, Completion Date, etc.)</li>
+                                <li>Task success rates</li>
+                                <li>Diagnostic test information (if available)</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload"></i> Upload and Analyze
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4 shadow">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">About Student Task Analysis</h5>
+            </div>
+            <div class="card-body">
+                <p>This tool analyzes student task performance data to identify:</p>
+                <ul>
+                    <li>Students who consistently work on tasks</li>
+                    <li>Performance trends over time</li>
+                    <li>Success rates across different subjects</li>
+                    <li>Task completion patterns</li>
+                </ul>
+                <p>After uploading your data, you can filter by date range, minimum success rate, 
+                   and minimum working days to find the most active students.</p>
+                <p>You can also view detailed profiles for each student and compare multiple students.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

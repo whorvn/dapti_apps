@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+
+{% block title %}Analysis Results - Student Task Analysis{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Student Analysis Results</h2>
+
+<!-- Filter form -->
+<div class="card shadow mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Filter Options</h5>
+    </div>
+    <div class="card-body">
+        <form method="post" action="{{ url_for('analyze') }}" class="row g-3">
+            <div class="col-md-3">
+                <label for="start_date" class="form-label">Start Date:</label>
+                <input type="date" class="form-control" id="start_date" name="start_date" 
+                       value="{{ session.filter_values.start_date }}">
+            </div>
+            <div class="col-md-3">
+                <label for="end_date" class="form-label">End Date:</label>
+                <input type="date" class="form-control" id="end_date" name="end_date" 
+                       value="{{ session.filter_values.end_date }}">
+            </div>
+            <div class="col-md-2">
+                <label for="min_success_rate" class="form-label">Min Success Rate (%):</label>
+                <input type="number" class="form-control" id="min_success_rate" name="min_success_rate" 
+                       value="{{ session.filter_values.min_success_rate }}" min="0" max="100">
+            </div>
+            <div class="col-md-2">
+                <label for="min_days" class="form-label">Min Working Days:</label>
+                <input type="number" class="form-control" id="min_days" name="min_days" 
+                       value="{{ session.filter_values.min_days }}" min="1">
+            </div>
+            <div class="col-md-2">
+                <label for="subject" class="form-label">Subject:</label>
+                <select class="form-select" id="subject" name="subject">
+                    <option value="All" {% if session.filter_values.subject == 'All' %}selected{% endif %}>All</option>
+                    {% for subject in subjects %}
+                    <option value="{{ subject }}" {% if session.filter_values.subject == subject %}selected{% endif %}>{{ subject }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary">Apply Filters</button>
+                <a href="{{ url_for('compare_students') }}" class="btn btn-info">Compare Students</a>
+                <a href="{{ url_for('export_data') }}" class="btn btn-success">Export Results</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results section -->
+<div class="row">
+    <!-- Table of results -->
+    <div class="col-lg-8">
+        <div class="card shadow">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">Qualifying Students</h5>
+            </div>
+            <div class="card-body">
+                {% if students %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Student Name</th>
+                                <th>Grade</th>
+                                <th>Days Worked</th>
+                                <th>Tasks</th>
+                                <th>Diagnostics</th>
+                                <th>Max Streak</th>
+                                <th>Avg Success</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for student in students %}
+                            <tr>
+                                <td>{{ student.Full_Name }}</td>
+                                <td>{{ student.Grade }}</td>
+                                <td>{{ student.Days_Worked }}</td>
+                                <td>{{ student.Total_Tasks }}</td>
+                                <td>{{ student.Diagnostics_Count }}</td>
+                                <td>{{ student.Max_Streak }}</td>
+                                <td>{{ student.Avg_Success }}</td>
+                                <td>
+                                    <a href="{{ url_for('student_detail', name=student.Full_Name) }}" class="btn btn-sm btn-outline-primary">
+                                        Details
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    No students match the current filtering criteria.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Chart section -->
+    <div class="col-lg-4">
+        <div class="card shadow">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">Summary Charts</h5>
+            </div>
+            <div class="card-body">
+                {% if chart_url %}
+                <img src="{{ chart_url }}" class="img-fluid" alt="Summary Chart">
+                {% else %}
+                <div class="alert alert-info">
+                    No data available for charting.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
