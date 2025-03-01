@@ -2,6 +2,12 @@
 
 {% block title %}{{ student.Full_Name }} - Student Profile{% endblock %}
 
+{% block og_title %}{{ student.Full_Name }} - DAPTI Student Profile{% endblock %}
+{% block og_description %}Performance data for {{ student.Full_Name }} (Grade {{ student.Grade }}): {{ student.Days_Worked }} days worked, {{ student.Total_Tasks }} tasks completed, {{ student.Avg_Success }} average success rate.{% endblock %}
+
+{% block twitter_title %}{{ student.Full_Name }} - DAPTI Student Profile{% endblock %}
+{% block twitter_description %}Performance data for {{ student.Full_Name }} (Grade {{ student.Grade }}): {{ student.Days_Worked }} days worked, {{ student.Total_Tasks }} tasks completed, {{ student.Avg_Success }} average success rate.{% endblock %}
+
 {% block content %}
 <div class="d-flex align-items-center mb-4">
     <h2 class="me-auto">Student Profile: {{ student.Full_Name }}</h2>

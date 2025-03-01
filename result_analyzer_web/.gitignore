@@ -28,6 +28,7 @@ static/charts/
 # Logs
 *.log
 logs/
+*.svg
 
 # Local environment variables
 .env

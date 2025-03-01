@@ -4,6 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Student Task Analysis{% endblock %}</title>
+    <!-- Add favicon -->
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='charts/dahi.28616260.svg') }}">
+    
+    <!-- Social sharing meta tags -->
+    <meta property="og:title" content="{% block og_title %}DAPTI Student Task Analysis{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}Analyze student performance data and track success rates across different subjects and tasks{% endblock %}">
+    <meta property="og:image" content="{{ url_for('static', filename='charts/dahi.28616260.svg', _external=True) }}">
+    <meta property="og:url" content="{{ request.url }}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="DAPTI Student Task Analysis">
+    
+    <!-- Twitter Card meta tags -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{% block twitter_title %}DAPTI Student Task Analysis{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}Analyze student performance data and track success rates across different subjects and tasks{% endblock %}">
+    <meta name="twitter:image" content="{{ url_for('static', filename='charts/dahi.28616260.svg', _external=True) }}">
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <style>
@@ -14,47 +31,6 @@
             min-height: 100vh;
         }
         
-        /* Enhanced watermark design */
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800' viewBox='0 0 800 800'%3E%3Ctext x='50%25' y='50%25' font-family='Arial, sans-serif' font-size='110' font-weight='bold' text-anchor='middle' dominant-baseline='middle' fill='%23ff3333' opacity='0.15' transform='rotate(-30, 400, 400)'%3EITZREONE%3C/text%3E%3C/svg%3E");
-            background-repeat: repeat;
-            background-size: 500px;
-            opacity: 0.18; /* Increased opacity */
-            z-index: 0;
-            pointer-events: none;
-            user-select: none;
-        }
-        
-        /* Alternate watermark for dark mode */
-        [data-bs-theme="dark"] body::before {
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800' viewBox='0 0 800 800'%3E%3Ctext x='50%25' y='50%25' font-family='Arial, sans-serif' font-size='110' font-weight='bold' text-anchor='middle' dominant-baseline='middle' fill='%23ff6666' opacity='0.2' transform='rotate(-30, 400, 400)'%3EITZREONE%3C/text%3E%3C/svg%3E");
-        }
-        
-        /* Fallback watermark in case SVG doesn't work */
-        @supports not (background-image: url("data:image/svg+xml,%3Csvg")) {
-            body::after {
-                content: "ITZREONE";
-                position: fixed;s
-                top: 50%;
-                right: 5%;
-                font-size: 5vw;
-                font-weight: bold;
-                color: #ff3333;
-                opacity: 100%%;
-                z-index: 0;
-                transform: rotate(-30deg);
-                pointer-events: none;
-                user-select: none;
-                text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-            }
-        }
-
         .navbar {
             margin-bottom: 20px;
         }
@@ -164,52 +140,24 @@
         body, .card, .table, .navbar, .alert {
             transition: background-color 0.3s ease, color 0.3s ease;
         }
-
-        /* Make content containers have some opacity to let watermark show through */
-        .card {
-            background-color: rgba(255, 255, 255, 0.95);
+        
+        /* Logo styling */
+        .navbar-brand img {
+            height: 30px;
+            width: auto;
         }
         
-        [data-bs-theme="dark"] .card {
-            background-color: rgba(43, 48, 53, 0.95);
-        }
-
-        /* Add watermark to card headers for extra visibility */
-        .card-header {
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .card-header::after {
-            content: "ITZREONE";
-            position: absolute;
-            top: 50%;
-            right: 10px;
-            transform: translateY(-50%) rotate(-15deg);
-            font-size: 20px;
-            font-weight: bold;
-            opacity: 0.2;
-            color: currentColor;
-            pointer-events: none;
-            user-select: none;
+        /* Footer styling */
+        footer {
+            margin-top: 40px;
+            padding: 10px 0;
+            font-size: 0.9rem;
+            text-align: center;
+            border-top: 1px solid rgba(0,0,0,0.1);
         }
         
-        /* Additional watermark in bottom right corner of pages */
-        body::after {
-            content: "ITZREONE";
-            position: fixed;
-            bottom: 15px;
-            right: 15px;
-            font-size: 14px;
-            font-weight: bold;
-            opacity: 0.4;
-            color: #ff3333;
-            z-index: 1000;
-            pointer-events: none;
-        }
-        
-        [data-bs-theme="dark"] body::after {
-            color: #ff6666;
+        [data-bs-theme="dark"] footer {
+            border-top: 1px solid rgba(255,255,255,0.1);
         }
     </style>
     {% block head %}{% endblock %}
@@ -217,9 +165,11 @@
 <body>
     <div class="container">
         <!-- Navigation bar -->
-        <nav class="navbar navbar-expand-lg rounded"> <!-- Removed navbar-light bg-light classes -->
+        <nav class="navbar navbar-expand-lg rounded">
             <div class="container-fluid">
-                <a class="navbar-brand" href="{{ url_for('index') }}">Student Task Analysis</a>
+                <a class="navbar-brand" href="{{ url_for('index') }}">
+                    <img src="{{ url_for('static', filename='charts/dahi.28616260.svg') }}" alt="DAPTI Logo">
+                </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
                         aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
@@ -269,6 +219,13 @@
         
         <!-- Main content block -->
         {% block content %}{% endblock %}
+        
+        <!-- Footer with copyright -->
+        <footer class="mt-5">
+            <div class="container">
+                <p class="mb-0">&copy; 2025 DAPTI All Rights Reserved</p>
+            </div>
+        </footer>
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
