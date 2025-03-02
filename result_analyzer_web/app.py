@@ -1030,7 +1030,7 @@ def export_data():
     else:
         # Fall back to CSV if xlsxwriter is not available
         df.to_csv(output, index=False)
-        
+        #
         # Seek to beginning of file
         output.seek(0)
         
