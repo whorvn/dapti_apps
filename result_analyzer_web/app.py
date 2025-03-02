@@ -15,6 +15,8 @@ import uuid
 import json
 from datetime import datetime, timedelta
 import traceback
+from urllib.parse import unquote
+import unicodedata
 
 app = Flask(__name__)
 app.secret_key = 'student_analysis_app_secret_key'  # Change this in production
@@ -24,6 +26,12 @@ UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'upload
 ALLOWED_EXTENSIONS = {'xlsx', 'xls', 'csv'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Set session configuration
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)  # Session expires after 2 hours of inactivity
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 # Create upload folder if it doesn't exist
 if not os.path.exists(UPLOAD_FOLDER):
@@ -262,7 +270,28 @@ def convert_to_serializable(obj):
         return obj
 
 # Bug fix: Make sure the custom NumpyEncoder is actually used
+def session_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Your session has expired. Please upload your file again.', 'warning')
+            return redirect(url_for('index'))
+        
+        # Check session age if needed
+        if 'last_activity' in session:
+            last_activity = datetime.fromisoformat(session['last_activity'])
+            if datetime.now() - last_activity > app.config['PERMANENT_SESSION_LIFETIME']:
+                session.clear()
+                flash('Your session has expired due to inactivity. Please upload your file again.', 'warning')
+                return redirect(url_for('index'))
+                
+        # Update last activity timestamp
+        session['last_activity'] = datetime.now().isoformat()
+        return f(*args, **kwargs)
+    return decorated_function
+
 @app.route('/analyze', methods=['GET', 'POST'])
+@session_required
 def analyze():
     if 'user_id' not in session:
         flash('Please upload a file first', 'warning')
@@ -484,6 +513,7 @@ def generate_summary_chart(results, user_id):
     return url_for('static', filename=f'charts/{chart_filename}')
 
 @app.route('/student/<name>')
+@session_required
 def student_detail(name):
     if 'user_id' not in session:
         flash('Session expired. Please upload file again.', 'warning')
@@ -864,6 +894,7 @@ def generate_subject_comparison(student_data, user_id, student_name):
     return url_for('static', filename=f'charts/{chart_filename}')
 
 @app.route('/compare', methods=['GET', 'POST'])
+@session_required
 def compare_students():
     if 'user_id' not in session:
         flash('Please upload a file first', 'warning')
@@ -1077,7 +1108,86 @@ def extend_session():
         return jsonify({'success': True})
     return jsonify({'success': False})
 
+# Fix the syntax error - add the session check route and remove duplicate code at the end
+@app.route('/check_session')
+def check_session():
+    """Check if the user's session is still valid and return warning if close to expiry"""
+    if 'user_id' not in session:
+        return jsonify({'valid': False})
+    
+    if 'last_activity' not in session:
+        # Set last activity if not present
+        session['last_activity'] = datetime.now().isoformat()
+        return jsonify({'valid': True})
+    
+    last_activity = datetime.fromisoformat(session['last_activity'])
+    session_lifetime = app.config['PERMANENT_SESSION_LIFETIME']
+    time_elapsed = datetime.now() - last_activity
+    
+    # Check if session has expired
+    if time_elapsed > session_lifetime:
+        return jsonify({'valid': False})
+    
+    # Check if session is about to expire (within 10 minutes)
+    time_left = session_lifetime - time_elapsed
+    minutes_left = time_left.total_seconds() / 60
+    
+    if minutes_left < 10:  # Warning threshold: 10 minutes
+        return jsonify({
+            'valid': True,
+            'warning': True,
+            'minutes_left': int(minutes_left)
+        })
+    
+    # Session is valid and not close to expiry
+    return jsonify({'valid': True})
+
+@app.route('/extend_session', methods=['POST'])
+def extend_session():
+    """Extend the user's session by updating the last_activity timestamp"""
+    if 'user_id' in session:
+        session['last_activity'] = datetime.now().isoformat()
+        return jsonify({'success': True})
+    return jsonify({'success': False}), 401
+
+# Add logging configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    filename='app.log',
+    filemode='a'
+)
+logger = logging.getLogger('data_cleanup')
+
+# Add data cleanup function
+def cleanup_old_data():
+    """Remove user uploaded files and folders older than 7 days"""
+    logger.info("Starting scheduled data cleanup")
+    try:
+        # Set cleanup threshold to 7 days
+        cleanup_threshold = datetime.now() - timedelta(days=7)
+        upload_folder = app.config['UPLOAD_FOLDER']
+        
+        # List all user folders
+        user_folders = [f for f in os.listdir(upload_folder) 
+                       if os.path.isdir(os.path.join(upload_folder, f))]
+        
+        cleaned_count = 0
+        for user_id in user_folders:
+            user_dir = os.path.join(upload_folder, user_id)
+            
+            # Get folder modification time
+            mod_time = datetime.fromtimestamp(os.path.getmtime(user_dir))
+            
+            # If folder is older than threshold, delete it
+            if mod_time < cleanup_threshold:
+                logger.info(f"Removing old data for user_id: {user_id}, last modified: {mod_time}")
+                shutil.rmtree(user_dir, ignore_errors=True)
+                cleaned_count += 1
+        
+        logger.info(f"Data cleanup complete. Removed {cleaned_count} old user folders")
+    except Exception as e:
+        logger.error(f"Error during data cleanup: {str(e)}")
+
 if __name__ == '__main__':
     app.run(debug=True)
-
-
