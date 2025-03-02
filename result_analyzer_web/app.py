@@ -279,29 +279,49 @@ def analyze():
     # Load the processed data
     df = pd.read_pickle(processed_file)
     
-    # Default filter values or get from form
+    # Default filter values or get from form/session
     if request.method == 'POST':
+        # Form submission - update filters
         start_date = pd.to_datetime(request.form.get('start_date'))
         end_date = pd.to_datetime(request.form.get('end_date'))
         min_success_rate = float(request.form.get('min_success_rate', 0))
         min_days = int(request.form.get('min_days', 7))
         selected_subject = request.form.get('subject', 'All')
+        
+        # Store the filter values in session
+        session['filter_values'] = {
+            'start_date': start_date.strftime('%Y-%m-%d'),
+            'end_date': end_date.strftime('%Y-%m-%d'),
+            'min_success_rate': min_success_rate,
+            'min_days': min_days,
+            'subject': selected_subject
+        }
     else:
-        # Default values
-        start_date = pd.to_datetime('2025-02-19')
-        end_date = pd.to_datetime('2025-02-27')
-        min_success_rate = 0
-        min_days = 7
-        selected_subject = 'All'
-    
-    # Store current filter values in session for displaying in template
-    session['filter_values'] = {
-        'start_date': start_date.strftime('%Y-%m-%d'),
-        'end_date': end_date.strftime('%Y-%m-%d'),
-        'min_success_rate': min_success_rate,
-        'min_days': min_days,
-        'subject': selected_subject
-    }
+        # GET request - use stored filters or defaults
+        if 'filter_values' in session:
+            # Use stored filters
+            filter_values = session['filter_values']
+            start_date = pd.to_datetime(filter_values['start_date'])
+            end_date = pd.to_datetime(filter_values['end_date'])
+            min_success_rate = float(filter_values['min_success_rate'])
+            min_days = int(filter_values['min_days'])
+            selected_subject = filter_values['subject']
+        else:
+            # First time visit - use defaults
+            start_date = pd.to_datetime('2025-02-19')
+            end_date = pd.to_datetime('2025-02-27')
+            min_success_rate = 0
+            min_days = 7
+            selected_subject = 'All'
+            
+            # Store default values in session
+            session['filter_values'] = {
+                'start_date': start_date.strftime('%Y-%m-%d'),
+                'end_date': end_date.strftime('%Y-%m-%d'),
+                'min_success_rate': min_success_rate,
+                'min_days': min_days,
+                'subject': selected_subject
+            }
     
     # Apply subject filter if needed
     filtered_df = df.copy()
@@ -969,6 +989,20 @@ def generate_comparison_chart(students, comparison_type, user_id):
     fig.savefig(chart_path)
     
     return url_for('static', filename=f'charts/{chart_filename}')
+
+# Add a route to clear filters (for reset button)
+@app.route('/reset_filters', methods=['POST'])
+def reset_filters():
+    if 'filter_values' in session:
+        # Reset to default values
+        session['filter_values'] = {
+            'start_date': '2025-02-19',
+            'end_date': '2025-02-27',
+            'min_success_rate': 0,
+            'min_days': 7,
+            'subject': 'All'
+        }
+    return redirect(url_for('analyze'))
 
 @app.route('/export')
 def export_data():
