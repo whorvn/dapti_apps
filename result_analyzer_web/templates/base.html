@@ -159,10 +159,96 @@
         [data-bs-theme="dark"] footer {
             border-top: 1px solid rgba(255,255,255,0.1);
         }
+        
+        /* Loading overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        
+        .loading-overlay.show {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        .spinner-container {
+            text-align: center;
+            background: rgba(40, 40, 40, 0.8);
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .spinner-text {
+            color: #ffffff;
+            margin-top: 1rem;
+            font-size: 1.2rem;
+        }
+        
+        /* Responsive table adjustments */
+        @media screen and (max-width: 768px) {
+            .table-responsive {
+                font-size: 0.85rem;
+            }
+            
+            .btn-sm {
+                padding: 0.25rem 0.5rem;
+                font-size: 0.75rem;
+            }
+        }
+        
+        /* Improved card styling for mobile */
+        @media screen and (max-width: 576px) {
+            .card-body {
+                padding: 0.75rem;
+            }
+            
+            h2, h3, h4, h5 {
+                font-size: 1.5rem;
+            }
+            
+            .table-responsive {
+                font-size: 0.75rem;
+            }
+            
+            /* Make nav tabs scrollable on mobile */
+            .nav-tabs {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                overflow-y: hidden;
+                -webkit-overflow-scrolling: touch;
+                -ms-overflow-style: -ms-autohiding-scrollbar;
+            }
+            
+            .nav-tabs .nav-link {
+                white-space: nowrap;
+            }
+        }
     </style>
     {% block head %}{% endblock %}
 </head>
 <body>
+    <!-- Loading overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner-container">
+            <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <div class="spinner-text">Processing...</div>
+        </div>
+    </div>
+
     <div class="container">
         <!-- Navigation bar -->
         <nav class="navbar navbar-expand-lg rounded">
@@ -197,7 +283,7 @@
                         
                         {% if 'user_id' in session %}
                         <a href="{{ url_for('export_data') }}" class="btn btn-success">
-                            <i class="bi bi-download"></i> Export Results
+                            <i class="bi bi-download"></i> <span class="d-none d-md-inline">Export</span>
                         </a>
                         {% endif %}
                     </div>
@@ -229,6 +315,10 @@
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Add Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Add our custom charts utility file -->
+    <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
     <script>
         // Dark mode functionality
         document.addEventListener('DOMContentLoaded', () => {
@@ -269,6 +359,66 @@
                     navbarElement.classList.add('navbar-light', 'bg-light');
                     navbarElement.classList.remove('navbar-dark');
                 }
+            }
+        });
+        
+        // Loading indicator functionality
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        
+        // Show loading spinner
+        function showLoading(message = 'Processing...') {
+            if (loadingOverlay) {
+                const spinnerText = loadingOverlay.querySelector('.spinner-text');
+                if (spinnerText) {
+                    spinnerText.textContent = message;
+                }
+                loadingOverlay.classList.add('show');
+                document.body.style.overflow = 'hidden'; // Prevent scrolling
+            }
+        }
+        
+        // Hide loading spinner
+        function hideLoading() {
+            if (loadingOverlay) {
+                loadingOverlay.classList.remove('show');
+                document.body.style.overflow = '';
+            }
+        }
+        
+        // Add loading indicator to forms that do file upload or data processing
+        document.addEventListener('DOMContentLoaded', function() {
+            // File upload form
+            const uploadForm = document.querySelector('form[enctype="multipart/form-data"]');
+            if (uploadForm) {
+                uploadForm.addEventListener('submit', function() {
+                    showLoading('Uploading and processing file...');
+                });
+            }
+            
+            // Filter form in analyze page
+            const filterForm = document.querySelector('form[action*="analyze"]');
+            if (filterForm) {
+                filterForm.addEventListener('submit', function() {
+                    showLoading('Filtering data...');
+                });
+            }
+            
+            // Compare form
+            const compareForm = document.querySelector('form[action*="compare"]');
+            if (compareForm) {
+                compareForm.addEventListener('submit', function() {
+                    showLoading('Generating comparison...');
+                });
+            }
+            
+            // Export button
+            const exportButton = document.querySelector('a[href*="export_data"]');
+            if (exportButton) {
+                exportButton.addEventListener('click', function() {
+                    showLoading('Preparing export file...');
+                    // Hide loading after 3 seconds, as download will start
+                    setTimeout(hideLoading, 3000);
+                });
             }
         });
     </script>
