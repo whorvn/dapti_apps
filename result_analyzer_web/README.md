@@ -1,34 +1,77 @@
-## Student Task Analysis Web Application
+# Student Result Analyzer
 
-This web application analyzes student task performance data to identify high-performing and consistent students. It allows for filtering, visualization, and detailed student performance analysis.
+A web application for analyzing and visualizing student performance data.
 
 ## Features
 
-- File upload (Excel, CSV) for student data analysis
-- Interactive filtering by date range, subject, and performance metrics
-- Summary charts for student performance comparison
-- Detailed student profiles with multiple views:
-  - Timeline of task completion
-  - Performance metrics and charts
-  - Task details
-  - Diagnostic test results
-  - Subject comparisons
-- Multi-student comparison tools
-- Data export to Excel
+- Upload and process student task data
+- Filter students by date range, success rate, and working days
+- View detailed student profiles with performance metrics
+- Generate visual charts and reports
+- Compare multiple students
+- Export data to Excel or CSV
+- Automatic cleanup of old data files
 
 ## Installation
 
-1. Clone this repository
-2. Create a Python virtual environment:
-   ```
-   python -m venv venv
-   ```
-3. Activate the environment:
-   - Windows: `venv\Scripts\activate`
-   - Linux/Mac: `source venv/bin/activate`
-4. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
+1. Clone this repository:
+
+```bash
+git clone <repository-url>
+cd result_analyzer_web
+```
+
+2. Create a virtual environment:
+
+```bash
+python -m venv myenv
+source myenv/bin/activate  # On Windows: myenv\Scripts\activate
+```
+
+3. Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
 
 ## Running the Application
+
+Start the application:
+
+```bash
+python app.py
+```
+
+By default, the application will run on http://127.0.0.1:5000/
+
+## Data Cleanup
+
+The application includes automatic data cleanup to prevent accumulation of old uploaded files. By default, files older than 7 days are automatically removed. This happens:
+
+1. As a scheduled task when the application is running (using APScheduler)
+2. You can manually run the cleanup script:
+
+```bash
+python cleanup.py --days 14  # Removes files older than 14 days
+```
+
+## Configuration
+
+You can configure the following aspects:
+
+- `UPLOAD_FOLDER`: Where uploaded files are stored
+- `PERMANENT_SESSION_LIFETIME`: How long user sessions last before expiring
+- Data cleanup threshold: How long to keep uploaded files
+
+## Security Considerations
+
+For production deployment:
+
+1. Change the secret key
+2. Enable HTTPS (set `SESSION_COOKIE_SECURE = True`)
+3. Configure appropriate file size limits
+4. Set up proper authentication if needed
+
+## License
+
+[Specify your license information]

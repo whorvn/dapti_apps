@@ -11,9 +11,11 @@
 {% block content %}
 <div class="d-flex align-items-center mb-4">
     <h2 class="me-auto">Student Profile: {{ student.Full_Name }}</h2>
-    <a href="{{ url_for('analyze') }}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left"></i> Back to Results
-    </a>
+    <div>
+        <a href="{{ url_for('analyze') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Results
+        </a>
+    </div>
 </div>
 
 <!-- Nav tabs -->

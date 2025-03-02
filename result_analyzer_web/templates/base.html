@@ -391,6 +391,8 @@
         
         // Add loading indicator to forms that do file upload or data processing
         document.addEventListener('DOMContentLoaded', function() {
+            // Remove or comment out any code that references print_analyze
+            
             // File upload form
             const uploadForm = document.querySelector('form[enctype="multipart/form-data"]');
             if (uploadForm) {
@@ -424,8 +426,97 @@
                     setTimeout(hideLoading, 3000);
                 });
             }
+            
+            // Remove any click handlers for print buttons that might reference print_analyze
+        });
+
+        // Session management
+        document.addEventListener('DOMContentLoaded', function() {
+            // Function to check session status every minute
+            function checkSessionStatus() {
+                // Only check if user is logged in (has a session)
+                if (document.body.classList.contains('session-active')) {
+                    fetch('{{ url_for("check_session") }}')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (!data.valid) {
+                                // Session expired, show modal
+                                const sessionModal = new bootstrap.Modal(document.getElementById('sessionExpiryModal'));
+                                sessionModal.show();
+                            }
+                            else if (data.warning) {
+                                // Session about to expire, show warning
+                                document.getElementById('sessionExpiryWarning').textContent = 
+                                    `Your session will expire in ${data.minutes_left} minutes. Would you like to continue?`;
+                                const warningModal = new bootstrap.Modal(document.getElementById('sessionWarningModal'));
+                                warningModal.show();
+                            }
+                        })
+                        .catch(error => console.error('Error checking session:', error));
+                }
+            }
+            
+            // Session extension
+            const extendSessionBtn = document.getElementById('extendSession');
+            if (extendSessionBtn) {
+                extendSessionBtn.addEventListener('click', function() {
+                    fetch('{{ url_for("extend_session") }}', { method: 'POST' })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                // Close warning modal
+                                const warningModal = bootstrap.Modal.getInstance(document.getElementById('sessionWarningModal'));
+                                warningModal.hide();
+                            }
+                        })
+                        .catch(error => console.error('Error extending session:', error));
+                });
+            }
+            
+            // Check session every minute (60000 ms)
+            setInterval(checkSessionStatus, 60000);
+            
+            // Add session-active class if user has session
+            {% if 'user_id' in session %}
+            document.body.classList.add('session-active');
+            {% endif %}
         });
     </script>
+    <!-- Session warning modal -->
+    <div class="modal fade" id="sessionWarningModal" tabindex="-1" aria-labelledby="sessionWarningModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title" id="sessionWarningModalLabel">Session Expiring Soon</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="sessionExpiryWarning">Your session will expire soon. Would you like to continue?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Dismiss</button>
+                    <button type="button" class="btn btn-primary" id="extendSession">Continue Session</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Session expired modal -->
+    <div class="modal fade" id="sessionExpiryModal" tabindex="-1" aria-labelledby="sessionExpiryModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="sessionExpiryModalLabel">Session Expired</h5>
+                </div>
+                <div class="modal-body">
+                    <p>Your session has expired due to inactivity. Please return to the homepage and upload your data again.</p>
+                </div>
+                <div class="modal-footer">
+                    <a href="{{ url_for('index') }}" class="btn btn-primary">Return to Homepage</a>
+                </div>
+            </div>
+        </div>
+    </div>
     {% block scripts %}{% endblock %}
 </body>
 </html>

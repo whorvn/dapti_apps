@@ -11,9 +11,17 @@
 {% block content %}
 <div class="d-flex align-items-center mb-4">
     <h2 class="me-auto">Compare Students</h2>
-    <a href="{{ url_for('analyze') }}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left"></i> Back to Results
-    </a>
+    <div>
+        <!-- Remove this print button -->
+        <!-- {% if comparison_data %}
+        <a href="{{ url_for('print_compare') }}" class="btn btn-outline-secondary me-2" target="_blank">
+            <i class="bi bi-printer"></i> Print
+        </a>
+        {% endif %} -->
+        <a href="{{ url_for('analyze') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Results
+        </a>
+    </div>
 </div>
 
 <div class="row">
