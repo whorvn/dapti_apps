@@ -145,7 +145,17 @@
                 <h5 class="mb-0">Summary Charts</h5>
             </div>
             <div class="card-body">
-                {% if chart_url %}
+                {% if summary_data %}
+                <div class="chart-container mb-4" style="position: relative; height:300px;">
+                    <canvas id="daysWorkedChart"></canvas>
+                </div>
+                <div class="chart-container mb-4" style="position: relative; height:300px;">
+                    <canvas id="tasksCompletedChart"></canvas>
+                </div>
+                <div class="chart-container" style="position: relative; height:300px;">
+                    <canvas id="maxStreakChart"></canvas>
+                </div>
+                {% elif chart_url %}
                 <img src="{{ chart_url }}" class="img-fluid" alt="Summary Chart">
                 {% else %}
                 <div class="alert alert-info">
@@ -275,6 +285,63 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     }
+
+    // Initialize charts if data is available
+    {% if summary_data %}
+    // Days worked chart
+    const daysWorkedCtx = document.getElementById('daysWorkedChart');
+    if (daysWorkedCtx) {
+        createHorizontalBarChart(
+            'daysWorkedChart',
+            {{ summary_data.names|tojson }},
+            [{
+                label: 'Days Worked',
+                data: {{ summary_data.days_worked|tojson }},
+                backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }],
+            'Top Students by Days Worked',
+            'Days Worked'
+        );
+    }
+    
+    // Tasks completed chart
+    const tasksCompletedCtx = document.getElementById('tasksCompletedChart');
+    if (tasksCompletedCtx) {
+        createHorizontalBarChart(
+            'tasksCompletedChart',
+            {{ summary_data.names|tojson }},
+            [{
+                label: 'Tasks Completed',
+                data: {{ summary_data.tasks_completed|tojson }},
+                backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 1
+            }],
+            'Tasks Completed by Top Students',
+            'Total Tasks'
+        );
+    }
+    
+    // Max streak chart
+    const maxStreakCtx = document.getElementById('maxStreakChart');
+    if (maxStreakCtx) {
+        createHorizontalBarChart(
+            'maxStreakChart',
+            {{ summary_data.names|tojson }},
+            [{
+                label: 'Maximum Streak',
+                data: {{ summary_data.max_streaks|tojson }},
+                backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                borderColor: 'rgba(255, 99, 132, 1)',
+                borderWidth: 1
+            }],
+            'Max Streaks by Top Students',
+            'Consecutive Days'
+        );
+    }
+    {% endif %}
 });
 </script>
 {% endblock %}

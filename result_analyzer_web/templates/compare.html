@@ -66,10 +66,15 @@
                 <h5 class="mb-0">Comparison Results</h5>
             </div>
             <div class="card-body">
-                {% if chart_url %}
+                {% if comparison_data_obj %}
+                <div class="chart-container mb-4" style="position: relative; height:400px;">
+                    <canvas id="comparisonChart"></canvas>
+                </div>
+                {% elif chart_url %}
                 <div class="mb-4">
                     <img src="{{ chart_url }}" class="img-fluid" alt="Comparison Chart">
                 </div>
+                {% endif %}
                 
                 {% if comparison_data %}
                 <div class="table-responsive">
@@ -122,7 +127,7 @@
                 </div>
                 {% endif %}
                 
-                {% else %}
+                {% if not comparison_data_obj and not chart_url %}
                 <div class="alert alert-info">
                     Select at least two students and click "Compare" to see results.
                 </div>
@@ -131,4 +136,24 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize comparison chart if data is available
+    {% if comparison_data_obj %}
+    const comparisonCtx = document.getElementById('comparisonChart');
+    if (comparisonCtx) {
+        createStudentComparisonChart(
+            'comparisonChart',
+            {{ comparison_data_obj.names|tojson }},
+            {{ comparison_data_obj.values|tojson }},
+            "{{ comparison_type }} Comparison",
+            "{{ comparison_type }}"
+        );
+    }
+    {% endif %}
+});
+</script>
 {% endblock %}

@@ -15,6 +15,8 @@ import uuid
 import json
 from datetime import datetime, timedelta
 import traceback
+from urllib.parse import unquote
+import unicodedata
 
 app = Flask(__name__)
 app.secret_key = 'student_analysis_app_secret_key'  # Change this in production
@@ -73,6 +75,42 @@ def calculate_max_streak(dates):
             streak_count = 1  # Reset streak counter
     
     return max_streak
+
+# Helper function to sanitize names for filenames
+def sanitize_filename(name):
+    """Convert any string to a safe filename"""
+    # Replace any character that's not alphanumeric, space, underscore, or dash with underscore
+    safe_name = "".join(c if c.isalnum() or c in [' ', '_', '-'] else '_' for c in name)
+    # Replace spaces with underscores
+    return safe_name.replace(" ", "_")
+
+# Create a custom JSON encoder to handle NumPy data types
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (np.integer, np.int64)):
+            return int(obj)
+        elif isinstance(obj, (np.floating, np.float64)):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NumpyEncoder, self).default(obj)
+
+# Enhanced function to handle all non-serializable types including timestamps
+def convert_to_serializable(obj):
+    """Convert non-serializable objects to serializable format."""
+    if isinstance(obj, (np.integer, np.int64)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, pd.Timestamp):
+        return obj.strftime('%Y-%m-%d %H:%M:%S')
+    elif isinstance(obj, datetime):
+        return obj.strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        # Just return the object as is
+        return obj
 
 @app.route('/')
 def index():
@@ -231,35 +269,6 @@ def upload_file():
     else:
         flash('Invalid file type. Please upload an Excel (.xlsx, .xls) or CSV file.', 'error')
         return redirect(url_for('index'))
-
-# Create a custom JSON encoder to handle NumPy data types
-class NumpyEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, (np.integer, np.int64)):
-            return int(obj)
-        elif isinstance(obj, (np.floating, np.float64)):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return super(NumpyEncoder, self).default(obj)
-
-# Enhanced function to handle all non-serializable types including timestamps
-def convert_to_serializable(obj):
-    """Convert non-serializable objects to serializable format."""
-    if isinstance(obj, (np.integer, np.int64)):
-        return int(obj)
-    elif isinstance(obj, (np.floating, np.float64)):
-        return float(obj)
-    elif isinstance(obj, np.ndarray):
-        return obj.tolist()
-    elif isinstance(obj, pd.Timestamp):
-        return obj.strftime('%Y-%m-%d %H:%M:%S')
-    elif isinstance(obj, datetime):
-        return obj.strftime('%Y-%m-%d %H:%M:%S')
-    else:
-        # Don't try to check with pd.api.types.is_datetime64_any_dtype
-        # Just return the object as is
-        return obj
 
 # Bug fix: Make sure the custom NumpyEncoder is actually used
 @app.route('/analyze', methods=['GET', 'POST'])
@@ -429,75 +438,27 @@ def analyze():
     with open(full_data_file, 'w') as f:
         json.dump(clean_full_data, f)
     
-    # Generate summary chart if there are results
-    chart_url = None
+    # Generate summary data for interactive charts
+    summary_data = None
     if student_summaries:
-        chart_url = generate_summary_chart(student_summaries, user_id)
+        # Sort by days worked
+        results_sorted = sorted(student_summaries, key=lambda x: x["Days_Worked"], reverse=True)
+        
+        # Limit to top 10 students for readability
+        top_students = results_sorted[:10]
+        
+        # Prepare data for interactive charts
+        summary_data = {
+            'names': [student["Full_Name"] for student in top_students],
+            'days_worked': [student["Days_Worked"] for student in top_students],
+            'tasks_completed': [student["Total_Tasks"] for student in top_students],
+            'max_streaks': [student["Max_Streak"] for student in top_students]
+        }
     
     return render_template('analyze.html', 
                            students=student_summaries, 
-                           chart_url=chart_url, 
+                           summary_data=summary_data, 
                            subjects=session.get('subjects', []))
-
-def generate_summary_chart(results, user_id):
-    """Generate summary charts for all qualifying students"""
-    if not results:
-        return None
-        
-    # Sort by days worked
-    results_sorted = sorted(results, key=lambda x: x["Days_Worked"], reverse=True)
-    
-    # Limit to top 10 students for readability
-    top_students = results_sorted[:10]
-    
-    # Extract data for charts
-    names = [r["Full_Name"] for r in top_students]
-    days = [r["Days_Worked"] for r in top_students]
-    tasks = [r["Total_Tasks"] for r in top_students]
-    max_streaks = [r["Max_Streak"] for r in top_students]
-    
-    # Create a figure with student analysis - with 3 subplots
-    fig = Figure(figsize=(10, 12))
-    
-    # Days worked chart
-    ax1 = fig.add_subplot(311)
-    y_pos = np.arange(len(names))
-    ax1.barh(y_pos, days, color="skyblue")
-    ax1.set_yticks(y_pos)
-    ax1.set_yticklabels(names)
-    ax1.set_xlabel("Days Worked")
-    ax1.set_title("Top Students by Days Worked")
-    
-    # Total tasks chart
-    ax2 = fig.add_subplot(312)
-    ax2.barh(y_pos, tasks, color="lightgreen")
-    ax2.set_yticks(y_pos)
-    ax2.set_yticklabels(names)
-    ax2.set_xlabel("Total Tasks Completed")
-    ax2.set_title("Tasks Completed by Top Students")
-    
-    # Max streak chart
-    ax3 = fig.add_subplot(313)
-    ax3.barh(y_pos, max_streaks, color="salmon")
-    ax3.set_yticks(y_pos)
-    ax3.set_yticklabels(names)
-    ax3.set_xlabel("Maximum Consecutive Days Streak")
-    ax3.set_title("Max Streaks by Top Students")
-    
-    # Adjust layout
-    fig.tight_layout()
-    
-    # Save the figure
-    chart_filename = f'summary_chart_{user_id}.png'
-    chart_path = os.path.join('static', 'charts', chart_filename)
-    
-    # Ensure directory exists
-    os.makedirs(os.path.join('static', 'charts'), exist_ok=True)
-    
-    # Save figure
-    fig.savefig(chart_path)
-    
-    return url_for('static', filename=f'charts/{chart_filename}')
 
 @app.route('/student/<name>')
 def student_detail(name):
@@ -508,9 +469,12 @@ def student_detail(name):
     user_id = session['user_id']
     user_dir = os.path.join(app.config['UPLOAD_FOLDER'], user_id)
     
+    # Decode the URL-encoded name
+    decoded_name = unquote(name)
+    
     # Load student summaries
-    summary_file = os.path.join(user_dir, 'student_summaries.json')  # Changed extension
-    full_data_file = os.path.join(user_dir, 'student_full_data.json')  # Changed extension
+    summary_file = os.path.join(user_dir, 'student_summaries.json')
+    full_data_file = os.path.join(user_dir, 'student_full_data.json')
     
     if not os.path.exists(summary_file) or not os.path.exists(full_data_file):
         flash('Student data not found. Please analyze data first.', 'warning')
@@ -524,29 +488,43 @@ def student_detail(name):
         student_full_data_json = json.load(f)
     
     # Find student in summaries
-    student_summary = next((s for s in student_summaries if s["Full_Name"] == name), None)
+    student_summary = next((s for s in student_summaries if s["Full_Name"] == decoded_name), None)
     
     if not student_summary:
-        flash(f'Student {name} not found', 'error')
+        # If we can't find an exact match, try with normalization
+        student_summary = next((s for s in student_summaries if unicodedata.normalize('NFC', s["Full_Name"]) == 
+                               unicodedata.normalize('NFC', decoded_name)), None)
+    
+    if not student_summary:
+        flash(f'Student {decoded_name} not found', 'error')
         return redirect(url_for('analyze'))
     
+    # Get the student name as stored in the data
+    actual_name = student_summary["Full_Name"]
+    
     # Convert JSON data back to DataFrame
-    if name in student_full_data_json:
-        student_data = pd.DataFrame(student_full_data_json[name])
+    if actual_name in student_full_data_json:
+        student_data = pd.DataFrame(student_full_data_json[actual_name])
         
         # Convert dates back to datetime
         if "Completion_Date" in student_data.columns:
             student_data["Completion_Date"] = pd.to_datetime(student_data["Completion_Date"])
     else:
-        flash(f'Detailed data for student {name} not found', 'error')
+        flash(f'Detailed data for student {decoded_name} not found', 'error')
         return redirect(url_for('analyze'))
     
     # Generate charts
     profile_info = get_student_profile_info(student_data)
     timeline_data = get_student_timeline_data(student_data)
     tasks_data = get_student_tasks_data(student_data)
-    progress_charts = generate_progress_charts(student_data, user_id, name)
+    
+    # Generate chart data
+    progress_data = get_progress_chart_data(student_data)
+    subject_data = get_subject_comparison_data(student_data)
     diagnostics_data = get_diagnostics_data(student_data)
+    
+    # Also keep the old chart generation functions for backward compatibility
+    progress_charts = generate_progress_charts(student_data, user_id, name)
     subject_comparison = generate_subject_comparison(student_data, user_id, name)
     
     return render_template('student_detail.html',
@@ -554,9 +532,11 @@ def student_detail(name):
                           profile=profile_info,
                           timeline_data=timeline_data,
                           tasks_data=tasks_data,
-                          progress_charts=progress_charts,
-                          diagnostics_data=diagnostics_data,
-                          subject_comparison=subject_comparison)
+                          progress_charts=progress_charts, 
+                          progress_data=progress_data,
+                          subject_comparison=subject_comparison,
+                          subject_data=subject_data,
+                          diagnostics_data=diagnostics_data)
 
 def get_student_profile_info(student_data):
     # Get first row for student info - all records should have same student info
@@ -608,7 +588,7 @@ def get_student_profile_info(student_data):
             "total_tasks": total_tasks,
             "diagnostics_count": diagnostics_count,
             "max_streak": max_streak,
-            "avg_success": f"{avg_success:.2f}%"  # Format with exactly 2 decimal places
+            "avg_success": f"{avg_success:.2f}%"
         },
         "recent_activity": recent_activities
     }
@@ -646,7 +626,7 @@ def get_student_timeline_data(student_data):
                 "subjects": ", ".join(day_data["Subject"].unique()),
                 "tasks_count": tasks_count,
                 "task_details": task_details,
-                "avg_success": f"{avg_success:.2f}%" if not pd.isna(avg_success) else "-",  # Format with exactly 2 decimal places
+                "avg_success": f"{avg_success:.2f}%" if not pd.isna(avg_success) else "-",
                 "has_task": True
             })
         else:
@@ -685,12 +665,122 @@ def get_student_tasks_data(student_data):
             "date": date_str,
             "subject": row["Subject"],
             "task": row["Task"],
-            "success_rate": f"{row['Success_Rate']:.2f}%",  # Format with exactly 2 decimal places
+            "success_rate": f"{row['Success_Rate']:.2f}%",
             "status": row["Status"],
             "success_class": success_class
         })
     
     return tasks_data
+
+# New function to prepare data for progress chart.js
+def get_progress_chart_data(student_data):
+    # Calculate daily success rates
+    daily_data = student_data.groupby(student_data["Completion_Date"].dt.date).agg({
+        "Success_Rate": "mean"
+    }).reset_index()
+    
+    # Sort by date
+    daily_data = daily_data.sort_values("Completion_Date")
+    
+    # Calculate task counts per day
+    task_counts = student_data.groupby(student_data["Completion_Date"].dt.date).size().reset_index()
+    task_counts.columns = ["Completion_Date", "Task_Count"]
+    
+    # Calculate subject performance
+    subject_data = student_data.groupby("Subject").agg({
+        "Success_Rate": "mean",
+        "Task": "count"
+    }).reset_index()
+    
+    # Sort subjects alphabetically
+    subject_data = subject_data.sort_values("Subject")
+    
+    # Format dates and create JSON-serializable data structure
+    return {
+        'dates': [date.strftime("%Y-%m-%d") for date in daily_data["Completion_Date"]],
+        'success_rates': [round(rate, 2) for rate in daily_data["Success_Rate"].tolist()],
+        'tasks_count': task_counts["Task_Count"].tolist(),
+        'subjects': subject_data["Subject"].tolist(),
+        'subject_success': [round(rate, 2) for rate in subject_data["Success_Rate"].tolist()],
+        'subject_tasks': subject_data["Task"].tolist()
+    }
+
+# New function to prepare data for subject comparison chart.js
+def get_subject_comparison_data(student_data):
+    subjects = sorted(student_data["Subject"].unique())
+    
+    if len(subjects) <= 1:
+        return None
+    
+    # Calculate metrics for each subject
+    subject_metrics = []
+    
+    for subject in subjects:
+        subject_data = student_data[student_data["Subject"] == subject]
+        
+        # Calculate metrics
+        task_count = len(subject_data)
+        avg_success = subject_data["Success_Rate"].mean()
+        days_worked = len(subject_data["Completion_Date"].dt.date.unique())
+        
+        subject_metrics.append({
+            "Subject": subject,
+            "Tasks": task_count,
+            "Success": round(avg_success, 2),
+            "Days": days_worked
+        })
+    
+    # Format for Chart.js
+    return {
+        'subjects': [metric["Subject"] for metric in subject_metrics],
+        'tasks': [metric["Tasks"] for metric in subject_metrics],
+        'success_rates': [metric["Success"] for metric in subject_metrics],
+        'days': [metric["Days"] for metric in subject_metrics]
+    }
+
+def get_diagnostics_data(student_data):
+    # Extract diagnostic data
+    diagnostics = student_data.iloc[0].get("Diagnostics", {})
+    
+    if not diagnostics:
+        return {
+            "has_data": False,
+            "tests": []
+        }
+    
+    # Calculate average diagnostic score if possible
+    diagnostic_scores = list(diagnostics.values())
+    avg_score = None
+    
+    if diagnostic_scores:
+        try:
+            # Convert to numeric if they're strings
+            numeric_scores = []
+            for score in diagnostic_scores:
+                if isinstance(score, (int, float)):
+                    numeric_scores.append(float(score))
+                elif isinstance(score, str) and score.replace('.', '', 1).isdigit():
+                    numeric_scores.append(float(score))
+            
+            if numeric_scores:
+                avg_score = sum(numeric_scores) / len(numeric_scores)
+        except:
+            pass
+    
+    # Prepare diagnostics data
+    tests_data = []
+    for test, score in diagnostics.items():
+        tests_data.append({
+            "test": test,
+            "score": score
+        })
+    
+    return {
+        "has_data": True,
+        "count": len(diagnostics),
+        "avg_score": f"{avg_score:.2f}%" if avg_score is not None else "N/A",
+        "tests": tests_data
+    }
 
 def generate_progress_charts(student_data, user_id, student_name):
     # Daily success rate chart
@@ -764,58 +854,21 @@ def generate_progress_charts(student_data, user_id, student_name):
     # Adjust layout
     fig.tight_layout()
     
-    # Save chart
-    chart_filename = f'progress_chart_{user_id}_{student_name.replace(" ", "_")}.png'
-    chart_path = os.path.join('static', 'charts', chart_filename)
+    # Save chart - handle special characters in the filename
+    safe_name = sanitize_filename(student_name)
+    chart_filename = f'progress_chart_{user_id}_{safe_name}.png'
+    
+    # Use absolute path to ensure the directory exists
+    static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'charts')
+    if not os.path.exists(static_dir):
+        os.makedirs(static_dir, exist_ok=True)
+    
+    chart_path = os.path.join(static_dir, chart_filename)
     
     # Save figure
     fig.savefig(chart_path)
     
     return url_for('static', filename=f'charts/{chart_filename}')
-
-def get_diagnostics_data(student_data):
-    # Extract diagnostic data
-    diagnostics = student_data.iloc[0].get("Diagnostics", {})
-    
-    if not diagnostics:
-        return {
-            "has_data": False,
-            "tests": []
-        }
-    
-    # Calculate average diagnostic score if possible
-    diagnostic_scores = list(diagnostics.values())
-    avg_score = None
-    
-    if diagnostic_scores:
-        try:
-            # Convert to numeric if they're strings
-            numeric_scores = []
-            for score in diagnostic_scores:
-                if isinstance(score, (int, float)):
-                    numeric_scores.append(float(score))
-                elif isinstance(score, str) and score.replace('.', '', 1).isdigit():
-                    numeric_scores.append(float(score))
-            
-            if numeric_scores:
-                avg_score = sum(numeric_scores) / len(numeric_scores)
-        except:
-            pass
-    
-    # Prepare diagnostics data
-    tests_data = []
-    for test, score in diagnostics.items():
-        tests_data.append({
-            "test": test,
-            "score": score
-        })
-    
-    return {
-        "has_data": True,
-        "count": len(diagnostics),
-        "avg_score": f"{avg_score:.2f}%" if avg_score is not None else "N/A",  # Format with exactly 2 decimal places
-        "tests": tests_data
-    }
 
 def generate_subject_comparison(student_data, user_id, student_name):
     subjects = sorted(student_data["Subject"].unique())
@@ -870,9 +923,16 @@ def generate_subject_comparison(student_data, user_id, student_name):
     # Adjust layout
     fig.tight_layout()
     
-    # Save chart
-    chart_filename = f'subject_chart_{user_id}_{student_name.replace(" ", "_")}.png'
-    chart_path = os.path.join('static', 'charts', chart_filename)
+    # Save chart - handle special characters in the filename
+    safe_name = sanitize_filename(student_name)
+    chart_filename = f'subject_chart_{user_id}_{safe_name}.png'
+    
+    # Use absolute path to ensure the directory exists
+    static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'charts')
+    if not os.path.exists(static_dir):
+        os.makedirs(static_dir, exist_ok=True)
+    
+    chart_path = os.path.join(static_dir, chart_filename)
     
     # Save figure
     fig.savefig(chart_path)
@@ -916,7 +976,31 @@ def compare_students():
                     student_copy["Avg_Success"] = f"{float(s['Avg_Success']):.2f}%"
                 selected_data.append(student_copy)
         
-        # Generate comparison chart
+        # Generate chart data for interactive Chart.js
+        comparison_data_obj = {
+            'names': [student["Full_Name"] for student in selected_data],
+            'values': []
+        }
+        
+        if comparison_type == "Success Rate":
+            comparison_data_obj['values'] = [float(student["Avg_Success"].replace('%', '')) 
+                                            if isinstance(student["Avg_Success"], str) 
+                                            else float(student["Avg_Success"]) 
+                                            for student in selected_data]
+            
+        elif comparison_type == "Tasks Completed":
+            comparison_data_obj['values'] = [int(student["Total_Tasks"]) for student in selected_data]
+            
+        elif comparison_type == "Days Worked":
+            comparison_data_obj['values'] = [int(student["Days_Worked"]) for student in selected_data]
+            
+        elif comparison_type == "Max Streak":
+            comparison_data_obj['values'] = [int(student["Max_Streak"]) for student in selected_data]
+            
+        else:  # "Diagnostics"
+            comparison_data_obj['values'] = [int(student.get("Diagnostics_Count", 0)) for student in selected_data]
+        
+        # Also keep the old chart generation for backward compatibility
         chart_url = generate_comparison_chart(selected_data, comparison_type, user_id)
         
         return render_template('compare.html', 
@@ -924,7 +1008,8 @@ def compare_students():
                                selected_students=selected_students,
                                comparison_type=comparison_type,
                                chart_url=chart_url,
-                               comparison_data=selected_data)
+                               comparison_data=selected_data,
+                               comparison_data_obj=comparison_data_obj)
     
     return render_template('compare.html', students=student_summaries)
 
@@ -941,27 +1026,28 @@ def generate_comparison_chart(students, comparison_type, user_id):
     names = [student["Full_Name"] for student in students]
     
     if comparison_type == "Success Rate":
-        values = [float(student["Avg_Success"]) for student in students]  # Convert to native Python float
+        values = [float(student["Avg_Success"].replace('%', '')) if isinstance(student["Avg_Success"], str) 
+                 else float(student["Avg_Success"]) for student in students]
         ylabel = "Average Success Rate (%)"
         title = "Success Rate Comparison"
         
     elif comparison_type == "Tasks Completed":
-        values = [int(student["Total_Tasks"]) for student in students]  # Convert to native Python int
+        values = [int(student["Total_Tasks"]) for student in students]
         ylabel = "Total Tasks Completed"
         title = "Tasks Completed Comparison"
         
     elif comparison_type == "Days Worked":
-        values = [int(student["Days_Worked"]) for student in students]  # Convert to native Python int
+        values = [int(student["Days_Worked"]) for student in students]
         ylabel = "Days Worked"
         title = "Days Worked Comparison"
         
     elif comparison_type == "Max Streak":
-        values = [int(student["Max_Streak"]) for student in students]  # Convert to native Python int
+        values = [int(student["Max_Streak"]) for student in students]
         ylabel = "Maximum Consecutive Days"
         title = "Max Streak Comparison"
         
     else:
-        values = [int(student.get("Diagnostics_Count", 0)) for student in students]  # Convert to native Python int
+        values = [int(student.get("Diagnostics_Count", 0)) for student in students]
         ylabel = "Diagnostics Completed"
         title = "Diagnostics Comparison"
     
@@ -983,7 +1069,13 @@ def generate_comparison_chart(students, comparison_type, user_id):
     
     # Save chart
     chart_filename = f'comparison_chart_{user_id}_{comparison_type.replace(" ", "_")}.png'
-    chart_path = os.path.join('static', 'charts', chart_filename)
+    
+    # Use absolute path to ensure the directory exists
+    static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'charts')
+    if not os.path.exists(static_dir):
+        os.makedirs(static_dir, exist_ok=True)
+    
+    chart_path = os.path.join(static_dir, chart_filename)
     
     # Save figure
     fig.savefig(chart_path)
@@ -1071,7 +1163,7 @@ def export_data():
     else:
         # Fall back to CSV if xlsxwriter is not available
         df.to_csv(output, index=False)
-        #
+        
         # Seek to beginning of file
         output.seek(0)
         
@@ -1085,7 +1177,15 @@ def export_data():
         download_name=filename
     )
 
+# Add error handling to the API views
+@app.errorhandler(500)
+def server_error(e):
+    app.logger.error(f"Server error: {e}")
+    return render_template('error.html', error=str(e)), 500
+
+@app.errorhandler(404)
+def not_found(e):
+    return render_template('error.html', error="The requested page was not found."), 404
 
 if __name__ == '__main__':
     app.run(debug=True)
-

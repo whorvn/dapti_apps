@@ -244,7 +244,25 @@
                 <h5 class="mb-0">Progress Charts</h5>
             </div>
             <div class="card-body">
-                {% if progress_charts %}
+                {% if progress_data %}
+                <div class="row">
+                    <div class="col-12 mb-4">
+                        <div class="chart-container" style="position: relative; height:300px;">
+                            <canvas id="dailySuccessRateChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-12 mb-4">
+                        <div class="chart-container" style="position: relative; height:300px;">
+                            <canvas id="tasksCompletedChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-12 mb-4">
+                        <div class="chart-container" style="position: relative; height:300px;">
+                            <canvas id="subjectPerformanceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                {% elif progress_charts %}
                 <img src="{{ progress_charts }}" class="img-fluid" alt="Progress Charts">
                 {% else %}
                 <div class="alert alert-info">No progress data available for charting.</div>
@@ -299,7 +317,11 @@
                 <h5 class="mb-0">Subject Comparison</h5>
             </div>
             <div class="card-body">
-                {% if subject_comparison %}
+                {% if subject_data %}
+                <div class="chart-container" style="position: relative; height:400px;">
+                    <canvas id="subjectComparisonChart"></canvas>
+                </div>
+                {% elif subject_comparison %}
                 <img src="{{ subject_comparison }}" class="img-fluid" alt="Subject Comparison">
                 {% else %}
                 <div class="alert alert-info">Multiple subjects required for comparison.</div>
@@ -308,4 +330,118 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle tab switching for mobile navigation
+    // ...existing code...
+    
+    // Initialize interactive charts if data is available
+    {% if progress_data %}
+    // Daily success rate chart
+    const dailySuccessCtx = document.getElementById('dailySuccessRateChart');
+    if (dailySuccessCtx) {
+        createLineChart(
+            'dailySuccessRateChart',
+            {{ progress_data.dates|tojson }},
+            [{
+                label: 'Success Rate',
+                data: {{ progress_data.success_rates|tojson }},
+                borderColor: 'rgba(54, 162, 235, 1)',
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                fill: true,
+                tension: 0.1,
+                pointRadius: 5,
+                pointHoverRadius: 7,
+            }],
+            'Daily Average Success Rate',
+            'Success Rate (%)',
+            'Date'
+        );
+    }
+    
+    // Daily tasks completed chart
+    const dailyTasksCtx = document.getElementById('tasksCompletedChart');
+    if (dailyTasksCtx) {
+        createBarChart(
+            'tasksCompletedChart',
+            {{ progress_data.dates|tojson }},
+            [{
+                label: 'Tasks Completed',
+                data: {{ progress_data.tasks_count|tojson }},
+                backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 1
+            }],
+            'Tasks Completed Per Day',
+            'Number of Tasks',
+            'Date'
+        );
+    }
+    
+    // Subject performance chart
+    const subjectPerfCtx = document.getElementById('subjectPerformanceChart');
+    if (subjectPerfCtx) {
+        createBarChart(
+            'subjectPerformanceChart',
+            {{ progress_data.subjects|tojson }},
+            [{
+                label: 'Success Rate',
+                data: {{ progress_data.subject_success|tojson }},
+                backgroundColor: 'rgba(153, 102, 255, 0.7)',
+                borderColor: 'rgba(153, 102, 255, 1)',
+                borderWidth: 1
+            }, {
+                label: 'Tasks Completed',
+                data: {{ progress_data.subject_tasks|tojson }},
+                backgroundColor: 'rgba(255, 159, 64, 0.7)',
+                borderColor: 'rgba(255, 159, 64, 1)', 
+                borderWidth: 1,
+                yAxisID: 'y1'
+            }],
+            'Performance by Subject',
+            'Success Rate (%)',
+            'Subject'
+        );
+    }
+    {% endif %}
+    
+    {% if subject_data %}
+    // Subject comparison chart
+    const subjectCompCtx = document.getElementById('subjectComparisonChart');
+    if (subjectCompCtx) {
+        createSubjectComparisonChart(
+            'subjectComparisonChart',
+            {{ subject_data.subjects|tojson }},
+            [
+                {
+                    label: 'Tasks Completed',
+                    data: {{ subject_data.tasks|tojson }},
+                    backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Success Rate (%)',
+                    data: {{ subject_data.success_rates|tojson }},
+                    backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Days Worked',
+                    data: {{ subject_data.days|tojson }},
+                    backgroundColor: 'rgba(255, 206, 86, 0.7)',
+                    borderColor: 'rgba(255, 206, 86, 1)',
+                    borderWidth: 1
+                }
+            ],
+            'Subject Comparison'
+        );
+    }
+    {% endif %}
+});
+</script>
 {% endblock %}
