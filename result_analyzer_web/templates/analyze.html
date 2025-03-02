@@ -68,10 +68,22 @@
             <div class="card-body">
                 {% if students %}
                 <div class="table-responsive">
+                    <!-- Search bar for students -->
+                    <div class="mb-3">
+                        <div class="input-group">
+                            <input type="text" id="studentSearch" class="form-control" placeholder="Search by name or phone...">
+                            <button id="clearSearch" class="btn btn-outline-secondary" type="button">
+                                <i class="bi bi-x"></i> Clear
+                            </button>
+                        </div>
+                        <div id="searchFeedback" class="form-text"></div>
+                    </div>
+                    
                     <table class="table table-striped table-hover" id="studentsTable">
                         <thead>
                             <tr>
                                 <th class="sortable" data-sort="name">Student Name <span class="sort-indicator"></span></th>
+                                <th>Phone</th>
                                 <th class="sortable" data-sort="grade">Grade <span class="sort-indicator"></span></th>
                                 <th class="sortable" data-sort="days">Days Worked <span class="sort-indicator"></span></th>
                                 <th class="sortable" data-sort="tasks">Tasks <span class="sort-indicator"></span></th>
@@ -85,12 +97,13 @@
                             {% for student in students %}
                             <tr>
                                 <td data-value="{{ student.Full_Name }}">{{ student.Full_Name }}</td>
+                                <td>{{ student.Phone }}</td>
                                 <td data-value="{{ student.Grade }}">{{ student.Grade }}</td>
                                 <td data-value="{{ student.Days_Worked }}">{{ student.Days_Worked }}</td>
                                 <td data-value="{{ student.Total_Tasks }}">{{ student.Total_Tasks }}</td>
                                 <td data-value="{{ student.Diagnostics_Count }}">{{ student.Diagnostics_Count }}</td>
                                 <td data-value="{{ student.Max_Streak }}">{{ student.Max_Streak }}</td>
-                                <td data-value="{{ student.Avg_Success }}">{{ student.Avg_Success }}</td>
+                                <td data-value="{{ student.Avg_Success }}">{{ '%.2f'|format(student.Avg_Success|float) }}%</td>
                                 <td>
                                     <a href="{{ url_for('student_detail', name=student.Full_Name) }}" class="btn btn-sm btn-outline-primary">
                                         Details
@@ -100,6 +113,12 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <span class="text-muted">Found {{ students|length }} students</span>
+                    <a href="{{ url_for('compare_students') }}" class="btn btn-success">
+                        <i class="bi bi-bar-chart-line"></i> Compare Students
+                    </a>
                 </div>
                 {% else %}
                 <div class="alert alert-info">
@@ -204,6 +223,49 @@ document.addEventListener('DOMContentLoaded', function() {
             th.classList.remove('sort-asc', 'sort-desc');
         });
     });
+
+    // Student search functionality
+    const searchInput = document.getElementById('studentSearch');
+    const searchFeedback = document.getElementById('searchFeedback');
+    const clearSearchBtn = document.getElementById('clearSearch');
+    const studentTable = document.getElementById('studentsTable');
+    const tableRows = studentTable ? Array.from(studentTable.querySelectorAll('tbody tr')) : [];
+    
+    function filterTable() {
+        if (!searchInput || !studentTable) return;
+        
+        const searchTerm = searchInput.value.trim().toLowerCase();
+        let matchCount = 0;
+        
+        tableRows.forEach(row => {
+            const name = (row.cells[0].textContent || '').toLowerCase();
+            const phone = (row.cells[1].textContent || '').toLowerCase();
+            const matchesSearch = name.includes(searchTerm) || phone.includes(searchTerm);
+            
+            row.style.display = matchesSearch ? '' : 'none';
+            if (matchesSearch) matchCount++;
+        });
+        
+        // Update search feedback
+        if (searchTerm) {
+            searchFeedback.textContent = `Found ${matchCount} matching students`;
+        } else {
+            searchFeedback.textContent = '';
+        }
+    }
+    
+    // Search input event
+    if (searchInput) {
+        searchInput.addEventListener('input', filterTable);
+        
+        // Clear search button
+        if (clearSearchBtn) {
+            clearSearchBtn.addEventListener('click', () => {
+                searchInput.value = '';
+                filterTable();
+            });
+        }
+    }
 });
 </script>
 {% endblock %}

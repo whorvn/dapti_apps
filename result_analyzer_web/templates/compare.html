@@ -77,6 +77,7 @@
                         <thead>
                             <tr>
                                 <th>Student</th>
+                                <th>Phone</th>
                                 <th>{{ comparison_type }}</th>
                                 <th>Grade</th>
                                 <th>Days Worked</th>
@@ -92,9 +93,14 @@
                                         {{ student.Full_Name }}
                                     </a>
                                 </td>
+                                <td>{{ student.Phone }}</td>
                                 <td>
                                     {% if comparison_type == "Success Rate" %}
-                                        {{ student.Avg_Success }}
+                                        {% if student.Avg_Success is string %}
+                                            {{ student.Avg_Success }}
+                                        {% else %}
+                                            {{ '%.2f'|format(student.Avg_Success|float) }}%
+                                        {% endif %}
                                     {% elif comparison_type == "Tasks Completed" %}
                                         {{ student.Total_Tasks }}
                                     {% elif comparison_type == "Days Worked" %}

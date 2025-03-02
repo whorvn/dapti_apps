@@ -361,7 +361,7 @@ def analyze():
                 "Total_Tasks": total_tasks,
                 "Diagnostics_Count": diagnostics_count,
                 "Max_Streak": max_streak,
-                "Avg_Success": avg_success,
+                "Avg_Success": round(avg_success, 2),  # Round to 2 decimal places
                 "Subjects": subjects_str
             })
             
@@ -588,7 +588,7 @@ def get_student_profile_info(student_data):
             "total_tasks": total_tasks,
             "diagnostics_count": diagnostics_count,
             "max_streak": max_streak,
-            "avg_success": f"{avg_success:.2f}%"
+            "avg_success": f"{avg_success:.2f}%"  # Format with exactly 2 decimal places
         },
         "recent_activity": recent_activities
     }
@@ -626,7 +626,7 @@ def get_student_timeline_data(student_data):
                 "subjects": ", ".join(day_data["Subject"].unique()),
                 "tasks_count": tasks_count,
                 "task_details": task_details,
-                "avg_success": f"{avg_success:.2f}%",
+                "avg_success": f"{avg_success:.2f}%" if not pd.isna(avg_success) else "-",  # Format with exactly 2 decimal places
                 "has_task": True
             })
         else:
@@ -665,7 +665,7 @@ def get_student_tasks_data(student_data):
             "date": date_str,
             "subject": row["Subject"],
             "task": row["Task"],
-            "success_rate": f"{row['Success_Rate']:.2f}%",
+            "success_rate": f"{row['Success_Rate']:.2f}%",  # Format with exactly 2 decimal places
             "status": row["Status"],
             "success_class": success_class
         })
@@ -793,7 +793,7 @@ def get_diagnostics_data(student_data):
     return {
         "has_data": True,
         "count": len(diagnostics),
-        "avg_score": f"{avg_score:.2f}%" if avg_score is not None else "N/A",
+        "avg_score": f"{avg_score:.2f}%" if avg_score is not None else "N/A",  # Format with exactly 2 decimal places
         "tests": tests_data
     }
 
@@ -887,7 +887,14 @@ def compare_students():
             return render_template('compare.html', students=student_summaries)
         
         # Filter student summaries to just the selected ones
-        selected_data = [s for s in student_summaries if s["Full_Name"] in selected_students]
+        selected_data = []
+        for s in student_summaries:
+            if s["Full_Name"] in selected_students:
+                # Create a copy of the student data with formatted Avg_Success
+                student_copy = s.copy()
+                if isinstance(s["Avg_Success"], (int, float)):
+                    student_copy["Avg_Success"] = f"{float(s['Avg_Success']):.2f}%"
+                selected_data.append(student_copy)
         
         # Generate comparison chart
         chart_url = generate_comparison_chart(selected_data, comparison_type, user_id)
