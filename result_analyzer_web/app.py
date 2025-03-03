@@ -279,6 +279,9 @@ def analyze():
     # Load the processed data
     df = pd.read_pickle(processed_file)
     
+    # Get total unique students before filtering
+    total_students = df['Full_Name'].nunique()
+    
     # Default filter values or get from form
     if request.method == 'POST':
         start_date = pd.to_datetime(request.form.get('start_date'))
@@ -417,7 +420,8 @@ def analyze():
     return render_template('analyze.html', 
                            students=student_summaries, 
                            chart_url=chart_url, 
-                           subjects=session.get('subjects', []))
+                           subjects=session.get('subjects', []),
+                           total_students=total_students)
 
 def generate_summary_chart(results, user_id):
     """Generate summary charts for all qualifying students"""
@@ -1044,7 +1048,36 @@ def export_data():
         download_name=filename
     )
 
+@app.route('/reset_filters', methods=['POST'])
+def reset_filters():
+    if 'filter_values' in session:
+        session.pop('filter_values')
+    return redirect(url_for('analyze'))
+
+@app.route('/check_session')
+def check_session():
+    """Check if the user session is still valid and how much time remains"""
+    if 'user_id' not in session:
+        return jsonify({'valid': False})
+    
+    # For simplicity, we'll just return that the session is valid
+    # In a production environment, you would check session expiry time
+    return jsonify({
+        'valid': True,
+        'warning': False,
+        'minutes_left': 30
+    })
+
+@app.route('/extend_session', methods=['POST'])
+def extend_session():
+    """Extend the user's session"""
+    if 'user_id' in session:
+        # In a real implementation, you would update the session expiry
+        # For now, we'll just return success
+        return jsonify({'success': True})
+    return jsonify({'success': False})
 
 if __name__ == '__main__':
     app.run(debug=True)
+
 
