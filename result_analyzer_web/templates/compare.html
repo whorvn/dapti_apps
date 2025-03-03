@@ -1,166 +1,180 @@
 {% extends 'base.html' %}
 
-{% block title %}Compare Students - Student Task Analysis{% endblock %}
-
-{% block og_title %}DAPTI Student Comparison{% endblock %}
-{% block og_description %}Compare performance metrics of multiple students across different subjects, including success rates, tasks completed, and working days.{% endblock %}
-
-{% block twitter_title %}DAPTI Student Comparison{% endblock %}
-{% block twitter_description %}Compare performance metrics of multiple students across different subjects, including success rates, tasks completed, and working days.{% endblock %}
+{% block title %}Student Comparison - Student Task Analysis{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center mb-4">
-    <h2 class="me-auto">Compare Students</h2>
-    <div>
-        <!-- Remove this print button -->
-        <!-- {% if comparison_data %}
-        <a href="{{ url_for('print_compare') }}" class="btn btn-outline-secondary me-2" target="_blank">
-            <i class="bi bi-printer"></i> Print
-        </a>
-        {% endif %} -->
-        <a href="{{ url_for('analyze') }}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Back to Results
-        </a>
-    </div>
-</div>
-
-<div class="row">
-    <!-- Selection panel -->
-    <div class="col-md-4">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">Select Students to Compare</h5>
-            </div>
-            <div class="card-body">
-                <form method="post" action="{{ url_for('compare_students') }}">
-                    <div class="mb-3">
-                        <label class="form-label">Choose students:</label>
-                        <div style="max-height: 300px; overflow-y: auto;">
+<div class="container">
+    <div class="card shadow mb-4">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0"><i class="bi bi-bar-chart-steps"></i> Compare Students</h4>
+        </div>
+        <div class="card-body">
+            <form method="post" action="{{ url_for('compare_students') }}">
+                <div class="row">
+                    <div class="col-md-8 mb-3">
+                        <label for="studentSelect" class="form-label">Select Students to Compare:</label>
+                        <select id="studentSelect" name="students" class="form-select" multiple size="8" required>
                             {% for student in students %}
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="students" value="{{ student.Full_Name }}" 
-                                       id="student{{ loop.index }}" {% if selected_students and student.Full_Name in selected_students %}checked{% endif %}>
-                                <label class="form-check-label" for="student{{ loop.index }}">
-                                    {{ student.Full_Name }} (Grade {{ student.Grade }})
-                                </label>
-                            </div>
+                                <option value="{{ student.Full_Name }}" 
+                                        {% if selected_students and student.Full_Name in selected_students %}selected{% endif %}>
+                                    {{ student.Full_Name }} (Grade: {{ student.Grade }})
+                                </option>
                             {% endfor %}
+                        </select>
+                        <div class="form-text">Hold Ctrl/Cmd to select multiple students</div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="comparisonType" class="form-label">Comparison Type:</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="comparison_type" id="successRate" 
+                                   value="Success Rate" {% if not comparison_type or comparison_type == 'Success Rate' %}checked{% endif %}>
+                            <label class="form-check-label" for="successRate">
+                                Average Success Rate
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="comparison_type" id="tasksCompleted" 
+                                   value="Tasks Completed" {% if comparison_type == 'Tasks Completed' %}checked{% endif %}>
+                            <label class="form-check-label" for="tasksCompleted">
+                                Total Tasks Completed
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="comparison_type" id="daysWorked" 
+                                   value="Days Worked" {% if comparison_type == 'Days Worked' %}checked{% endif %}>
+                            <label class="form-check-label" for="daysWorked">
+                                Days Worked
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="comparison_type" id="maxStreak" 
+                                   value="Max Streak" {% if comparison_type == 'Max Streak' %}checked{% endif %}>
+                            <label class="form-check-label" for="maxStreak">
+                                Maximum Daily Streak
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="comparison_type" id="diagnostics" 
+                                   value="Diagnostics" {% if comparison_type == 'Diagnostics' %}checked{% endif %}>
+                            <label class="form-check-label" for="diagnostics">
+                                Diagnostic Tests Completed
+                            </label>
                         </div>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="comparison_type" class="form-label">Compare by:</label>
-                        <select class="form-select" id="comparison_type" name="comparison_type">
-                            <option value="Success Rate" {% if comparison_type == "Success Rate" %}selected{% endif %}>Success Rate</option>
-                            <option value="Tasks Completed" {% if comparison_type == "Tasks Completed" %}selected{% endif %}>Tasks Completed</option>
-                            <option value="Days Worked" {% if comparison_type == "Days Worked" %}selected{% endif %}>Days Worked</option>
-                            <option value="Max Streak" {% if comparison_type == "Max Streak" %}selected{% endif %}>Max Streak</option>
-                            <option value="Diagnostics" {% if comparison_type == "Diagnostics" %}selected{% endif %}>Diagnostics</option>
-                        </select>
-                    </div>
-                    
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">Compare</button>
-                    </div>
-                </form>
-            </div>
+                </div>
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-bar-chart-line"></i> Compare
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
     
-    <!-- Results panel -->
-    <div class="col-md-8">
-        <div class="card shadow">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0">Comparison Results</h5>
+    {% if comparison_data %}
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">{{ comparison_type }} Comparison</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Interactive chart container -->
+                    <div style="height: 300px;">
+                        <canvas id="comparisonChart"></canvas>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                {% if comparison_data_obj %}
-                <div class="chart-container mb-4" style="position: relative; height:400px;">
-                    <canvas id="comparisonChart"></canvas>
+        </div>
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Student Data Comparison</h5>
                 </div>
-                {% elif chart_url %}
-                <div class="mb-4">
-                    <img src="{{ chart_url }}" class="img-fluid" alt="Comparison Chart">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Student Name</th>
+                                    <th>Days Worked</th>
+                                    <th>Tasks Completed</th>
+                                    <th>Avg Success Rate</th>
+                                    <th>Max Streak</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for student in comparison_data %}
+                                <tr>
+                                    <td>
+                                        <a href="{{ url_for('student_detail', name=student.Full_Name) }}">
+                                            {{ student.Full_Name }}
+                                        </a>
+                                    </td>
+                                    <td>{{ student.Days_Worked }}</td>
+                                    <td>{{ student.Total_Tasks }}</td>
+                                    <td>{{ student.Avg_Success }}</td>
+                                    <td>{{ student.Max_Streak }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                {% endif %}
-                
-                {% if comparison_data %}
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover">
-                        <thead>
-                            <tr>
-                                <th>Student</th>
-                                <th>Phone</th>
-                                <th>{{ comparison_type }}</th>
-                                <th>Grade</th>
-                                <th>Days Worked</th>
-                                <th>Tasks</th>
-                                <th>Subjects</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for student in comparison_data %}
-                            <tr>
-                                <td>
-                                    <a href="{{ url_for('student_detail', name=student.Full_Name) }}">
-                                        {{ student.Full_Name }}
-                                    </a>
-                                </td>
-                                <td>{{ student.Phone }}</td>
-                                <td>
-                                    {% if comparison_type == "Success Rate" %}
-                                        {% if student.Avg_Success is string %}
-                                            {{ student.Avg_Success }}
-                                        {% else %}
-                                            {{ '%.2f'|format(student.Avg_Success|float) }}%
-                                        {% endif %}
-                                    {% elif comparison_type == "Tasks Completed" %}
-                                        {{ student.Total_Tasks }}
-                                    {% elif comparison_type == "Days Worked" %}
-                                        {{ student.Days_Worked }}
-                                    {% elif comparison_type == "Max Streak" %}
-                                        {{ student.Max_Streak }}
-                                    {% else %}
-                                        {{ student.Diagnostics_Count }}
-                                    {% endif %}
-                                </td>
-                                <td>{{ student.Grade }}</td>
-                                <td>{{ student.Days_Worked }}</td>
-                                <td>{{ student.Total_Tasks }}</td>
-                                <td>{{ student.Subjects }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% endif %}
-                
-                {% if not comparison_data_obj and not chart_url %}
-                <div class="alert alert-info">
-                    Select at least two students and click "Compare" to see results.
-                </div>
-                {% endif %}
             </div>
         </div>
     </div>
+    {% endif %}
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize comparison chart if data is available
-    {% if comparison_data_obj %}
-    const comparisonCtx = document.getElementById('comparisonChart');
-    if (comparisonCtx) {
-        createStudentComparisonChart(
-            'comparisonChart',
-            {{ comparison_data_obj.names|tojson }},
-            {{ comparison_data_obj.values|tojson }},
-            "{{ comparison_type }} Comparison",
-            "{{ comparison_type }}"
-        );
-    }
+    {% if comparison_data_obj and comparison_data_obj.names %}
+    // Get the chart data
+    const studentNames = {{ comparison_data_obj.names | tojson }};
+    // Important fix: Use safe JSON parsing for the values array
+    const comparisonValues = {{ comparison_data_obj.values | tojson }};
+    
+    // Create the comparison chart
+    const ctx = document.getElementById('comparisonChart').getContext('2d');
+    const comparisonChart = new Chart(ctx, {
+        type: 'horizontalBar',
+        data: {
+            labels: studentNames,
+            datasets: [{
+                label: '{{ comparison_type }}',
+                data: comparisonValues,
+                backgroundColor: generateColorPalette(studentNames.length),
+                borderColor: generateColorPalette(studentNames.length, 1.0),
+                borderWidth: 1
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                title: {
+                    display: true,
+                    text: '{{ comparison_type }} Comparison'
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: '{{ comparison_type }}'
+                    }
+                }
+            }
+        }
+    });
     {% endif %}
 });
 </script>

@@ -1021,25 +1021,66 @@ def compare_students():
             'values': []
         }
         
-        if comparison_type == "Success Rate":
-            comparison_data_obj['values'] = [float(student["Avg_Success"].replace('%', '')) 
-                                            if isinstance(student["Avg_Success"], str) 
-                                            else float(student["Avg_Success"]) 
-                                            for student in selected_data]
+        try:
+            values_list = []  # Create a new list to hold the values
             
-        elif comparison_type == "Tasks Completed":
-            comparison_data_obj['values'] = [int(student["Total_Tasks"]) for student in selected_data]
+            if comparison_type == "Success Rate":
+                for student in selected_data:
+                    avg_success = student.get("Avg_Success")
+                    if isinstance(avg_success, str):
+                        values_list.append(float(avg_success.replace('%', '')))
+                    elif isinstance(avg_success, (int, float)):
+                        values_list.append(float(avg_success))
+                    else:
+                        values_list.append(0.0)
+                
+            elif comparison_type == "Tasks Completed":
+                for student in selected_data:
+                    tasks = student.get("Total_Tasks")
+                    if isinstance(tasks, (int, float)) or (isinstance(tasks, str) and tasks.isdigit()):
+                        values_list.append(int(tasks))
+                    else:
+                        values_list.append(0)
+                
+            elif comparison_type == "Days Worked":
+                for student in selected_data:
+                    days = student.get("Days_Worked")
+                    if isinstance(days, (int, float)) or (isinstance(days, str) and days.isdigit()):
+                        values_list.append(int(days))
+                    else:
+                        values_list.append(0)
+                
+            elif comparison_type == "Max Streak":
+                for student in selected_data:
+                    streak = student.get("Max_Streak")
+                    if isinstance(streak, (int, float)) or (isinstance(streak, str) and streak.isdigit()):
+                        values_list.append(int(streak))
+                    else:
+                        values_list.append(0)
+                
+            else:  # "Diagnostics"
+                for student in selected_data:
+                    # Fix: Directly access the Diagnostics_Count key
+                    if "Diagnostics_Count" in student and isinstance(student["Diagnostics_Count"], (int, float, str)):
+                        diag_count = student["Diagnostics_Count"]
+                        if isinstance(diag_count, str) and diag_count.isdigit():
+                            values_list.append(int(diag_count))
+                        elif isinstance(diag_count, (int, float)):
+                            values_list.append(int(diag_count))
+                        else:
+                            values_list.append(0)
+                    else:
+                        values_list.append(0)
             
-        elif comparison_type == "Days Worked":
-            comparison_data_obj['values'] = [int(student["Days_Worked"]) for student in selected_data]
+            # Assign the properly serializable list to the comparison_data_obj
+            comparison_data_obj['values'] = values_list
             
-        elif comparison_type == "Max Streak":
-            comparison_data_obj['values'] = [int(student["Max_Streak"]) for student in selected_data]
-            
-        else:  # "Diagnostics"
-            comparison_data_obj['values'] = [int(student.get("Diagnostics_Count", 0)) for student in selected_data]
+        except Exception as e:
+            app.logger.error(f"Error preparing comparison data: {str(e)}")
+            comparison_data_obj['values'] = [0] * len(selected_data)
+            flash(f"Warning: Some data could not be processed properly. Error: {str(e)}", "warning")
         
-        # Also keep the old chart generation for backward compatibility
+        # Generate comparison chart
         chart_url = generate_comparison_chart(selected_data, comparison_type, user_id)
         
         return render_template('compare.html', 
@@ -1052,62 +1093,66 @@ def compare_students():
     
     return render_template('compare.html', students=student_summaries)
 
-def generate_comparison_chart(students, comparison_type, user_id):
-    """Generate a chart comparing selected students"""
-    if not students:
-        return None
-    
-    # Create a figure for comparison
+def generate_comparison_chart(students_data, comparison_type, user_id):
+    """Generate comparison chart between students"""
+    # Create figure for comparison
     fig = Figure(figsize=(10, 6))
     ax = fig.add_subplot(111)
     
-    # Prepare data based on comparison type
-    names = [student["Full_Name"] for student in students]
+    # Extract data for comparison
+    names = [s["Full_Name"] for s in students_data]
     
+    # Extract the values to compare based on comparison type
     if comparison_type == "Success Rate":
-        values = [float(student["Avg_Success"].replace('%', '')) if isinstance(student["Avg_Success"], str) 
-                 else float(student["Avg_Success"]) for student in students]
-        ylabel = "Average Success Rate (%)"
-        title = "Success Rate Comparison"
+        values = []
+        for s in students_data:
+            success = s.get("Avg_Success")
+            if isinstance(success, str):
+                values.append(float(success.replace('%', '').strip()))
+            elif isinstance(success, (int, float)):
+                values.append(float(success))
+            else:
+                values.append(0)
+        label = "Average Success Rate (%)"
         
     elif comparison_type == "Tasks Completed":
-        values = [int(student["Total_Tasks"]) for student in students]
-        ylabel = "Total Tasks Completed"
-        title = "Tasks Completed Comparison"
+        values = [float(s.get("Total_Tasks", 0)) for s in students_data]
+        label = "Total Tasks Completed"
         
     elif comparison_type == "Days Worked":
-        values = [int(student["Days_Worked"]) for student in students]
-        ylabel = "Days Worked"
-        title = "Days Worked Comparison"
+        values = [float(s.get("Days_Worked", 0)) for s in students_data]
+        label = "Days Worked"
         
     elif comparison_type == "Max Streak":
-        values = [int(student["Max_Streak"]) for student in students]
-        ylabel = "Maximum Consecutive Days"
-        title = "Max Streak Comparison"
+        values = [float(s.get("Max_Streak", 0)) for s in students_data]
+        label = "Maximum Daily Streak"
         
-    else:
-        values = [int(student.get("Diagnostics_Count", 0)) for student in students]
-        ylabel = "Diagnostics Completed"
-        title = "Diagnostics Comparison"
+    else:  # Diagnostics
+        values = [float(s.get("Diagnostics_Count", 0)) for s in students_data]
+        label = "Diagnostic Tests Completed"
     
     # Create horizontal bar chart
     y_pos = np.arange(len(names))
     ax.barh(y_pos, values, align='center')
     ax.set_yticks(y_pos)
     ax.set_yticklabels(names)
-    ax.invert_yaxis()  # labels read top-to-bottom
-    ax.set_xlabel(ylabel)
-    ax.set_title(title)
+    ax.invert_yaxis()  # Labels read top-to-bottom
+    ax.set_xlabel(label)
+    ax.set_title(f'{comparison_type} Comparison')
     
-    # Add value labels
+    # Add value labels to the right of each bar
     for i, v in enumerate(values):
-        ax.text(v + 0.1, i, str(v), va='center')
+        if comparison_type == "Success Rate":
+            ax.text(v + 1, i, f"{v:.1f}%", va='center')
+        else:
+            ax.text(v + 0.1, i, f"{int(v)}", va='center')
     
     # Adjust layout
     fig.tight_layout()
     
-    # Save chart
-    chart_filename = f'comparison_chart_{user_id}_{comparison_type.replace(" ", "_")}.png'
+    # Generate a unique filename
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    chart_filename = f'comparison_chart_{user_id}_{timestamp}.png'
     
     # Use absolute path to ensure the directory exists
     static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'charts')
@@ -1332,3 +1377,4 @@ if __name__ == '__main__':
     
     # Run the Flask app
     app.run(debug=True, use_reloader=False)  # use_reloader=False to prevent duplicate scheduler
+``` 
