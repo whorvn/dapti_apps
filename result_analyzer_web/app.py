@@ -321,6 +321,9 @@ def analyze():
     # Load the processed data
     df = pd.read_pickle(processed_file)
     
+    # Get total unique students before filtering
+    total_students = df['Full_Name'].nunique()
+    
     # Default filter values or get from form/session
     if request.method == 'POST':
         # Form submission - update filters
@@ -491,7 +494,8 @@ def analyze():
     return render_template('analyze.html', 
                            students=student_summaries, 
                            summary_data=summary_data, 
-                           subjects=session.get('subjects', []))
+                           subjects=session.get('subjects', []),
+                           total_students=total_students)
 
 @app.route('/student/<name>')
 @session_required
