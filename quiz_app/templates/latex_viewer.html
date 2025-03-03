@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LaTeX Viewer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- MathJax 3 Configuration -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true
+            },
+            options: {
+                enableMenu: false
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <style>
+        .latex-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .latex-display {
+            margin-bottom: 2rem;
+            padding: 1rem;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+        }
+        
+        .latex-input {
+            width: 100%;
+            padding: 0.5rem;
+            margin-top: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        
+        .btn-render {
+            margin-top: 0.5rem;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .btn-render:hover {
+            background-color: var(--primary-dark);
+        }
+        
+        .options {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="app-header">
+            <h1>LaTeX Viewer</h1>
+            <p>Test rendering LaTeX expressions with MathJax</p>
+            <div class="options">
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Upload</a>
+                <a href="{{ url_for('math_examples') }}" class="btn btn-secondary">View Examples</a>
+            </div>
+        </div>
+        
+        <div class="latex-container">
+            <h2>Your LaTeX Expression:</h2>
+            
+            <div class="latex-input-container">
+                <form id="latexForm">
+                    <textarea class="latex-input" id="latexInput" rows="4">{{ latex }}</textarea>
+                    <div class="options">
+                        <button type="button" class="btn-render" id="renderInline">Render Inline ($....$)</button>
+                        <button type="button" class="btn-render" id="renderBlock">Render Block ($$....$$)</button>
+                    </div>
+                </form>
+            </div>
+            
+            <h2>Inline Result:</h2>
+            <div class="latex-display">
+                <span id="inlineResult">Inline: ${{ latex }}$</span>
+            </div>
+            
+            <h2>Block Result:</h2>
+            <div class="latex-display">
+                <div id="blockResult">$${{ latex }}$$</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const latexInput = document.getElementById('latexInput');
+            const renderInline = document.getElementById('renderInline');
+            const renderBlock = document.getElementById('renderBlock');
+            const inlineResult = document.getElementById('inlineResult');
+            const blockResult = document.getElementById('blockResult');
+            
+            renderInline.addEventListener('click', function() {
+                inlineResult.innerHTML = 'Inline: $' + latexInput.value + '$';
+                if (window.MathJax) {
+                    window.MathJax.typeset([inlineResult]);
+                }
+            });
+            
+            renderBlock.addEventListener('click', function() {
+                blockResult.innerHTML = '$$' + latexInput.value + '$$';
+                if (window.MathJax) {
+                    window.MathJax.typeset([blockResult]);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

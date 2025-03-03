@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz App - Excel Uploader</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .loading-spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--primary-color);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error {
+            background-color: #FEF2F2;
+            color: #DC2626;
+        }
+        .success {
+            background-color: #ECFDF5;
+            color: #10B981;
+        }
+        
+        #debugInfo {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            font-family: monospace;
+            display: none;
+        }
+        
+        .debug-toggle {
+            cursor: pointer;
+            color: var(--primary-color);
+            text-decoration: underline;
+            font-size: 0.8rem;
+            margin-top: 10px;
+            text-align: center;
+        }
+        
+        /* Loading screen styles */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--background-color);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+        
+        .loading-screen.show {
+            opacity: 1;
+            pointer-events: all;
+        }
+        
+        .loading-icon {
+            width: 80px;
+            height: 80px;
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        .loading-icon div {
+            position: absolute;
+            border: 4px solid var(--primary-color);
+            opacity: 1;
+            border-radius: 50%;
+            animation: loading-animation 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+        }
+        
+        .loading-icon div:nth-child(2) {
+            animation-delay: -0.5s;
+        }
+        
+        @keyframes loading-animation {
+            0% {
+                top: 36px;
+                left: 36px;
+                width: 0;
+                height: 0;
+                opacity: 1;
+            }
+            100% {
+                top: 0px;
+                left: 0px;
+                width: 72px;
+                height: 72px;
+                opacity: 0;
+            }
+        }
+        
+        .dark-mode-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <!-- Dark Mode Toggle -->
+    <div class="theme-switch-wrapper">
+        <label class="theme-switch" for="checkbox">
+            <input type="checkbox" id="checkbox" />
+            <div class="slider"></div>
+        </label>
+    </div>
+    
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-icon">
+            <div></div>
+            <div></div>
+        </div>
+        <div class="loading-message">Processing your file...</div>
+        <div class="loading-progress">
+            <div class="loading-progress-bar" id="loadingProgressBar"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="app-header">
+            <h1>Excel Quiz Builder</h1>
+            <p>Upload your Excel file to generate an interactive quiz</p>
+        </div>
+
+        <div class="upload-container">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-messages">
+                        {% for category, message in messages %}
+                            <div class="flash-message {% if category %}{{ category }}{% endif %}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <div class="upload-box">
+                <form action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data" id="uploadForm">
+                    <div class="file-input-container">
+                        <input type="file" name="file" id="file" class="file-input" accept=".xlsx, .xls" required>
+                        <label for="file">
+                            <div class="file-icon">📁</div>
+                            <div class="file-text">Choose an Excel file or drag it here</div>
+                        </label>
+                    </div>
+                    <button type="submit" class="upload-button" id="uploadButton" disabled>Upload & Generate Quiz</button>
+                </form>
+                <div class="loading" id="loadingIndicator">
+                    <div class="loading-spinner"></div>
+                    <p>Processing your Excel file...</p>
+                </div>
+                
+                <div class="debug-toggle" id="toggleDebug">Show Debug Info</div>
+                <div id="debugInfo"></div>
+            </div>
+        </div>
+
+        <div class="guidelines">
+            <h2>File Format Guidelines:</h2>
+            <p>Your Excel file should have the following columns:</p>
+            <ul>
+                <li><strong>Topic, Class, Question</strong>: Required fields</li>
+                <li><strong>Option A, Option B, Option C, Option D</strong>: The answer choices</li>
+                <li><strong>Correct option</strong>: The letter of the correct answer (e.g., "A")</li>
+                <li><strong>Translation, Formula</strong>: Optional fields for additional content</li>
+            </ul>
+            <p class="highlight-info">For proper math rendering, enclose expressions in $ symbols for inline math (e.g., $x^2$) or $$ symbols for display math (e.g., $$\int f(x) dx$$).</p>
+            <p>Examples:</p>
+            <ul>
+                <li>Inline: $E=mc^2$</li>
+                <li>Display: $$\frac{1}{2}+\frac{1}{3}=\frac{5}{6}$$</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // JavaScript to enhance the file input experience
+        const fileInput = document.querySelector('.file-input');
+        const fileLabel = document.querySelector('.file-input-container label');
+        const fileText = document.querySelector('.file-text');
+        const uploadForm = document.getElementById('uploadForm');
+        const uploadButton = document.getElementById('uploadButton');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+
+        // Form submission handling
+        uploadForm.addEventListener('submit', function(e) {
+            if (!fileInput.files || fileInput.files.length === 0) {
+                e.preventDefault();
+                alert('Please select a file first.');
+                return false;
+            }
+            
+            // Add a form submission message to the debug info
+            debugInfo.innerHTML += '<p>Form submitting with file: ' + fileInput.files[0].name + '</p>';
+            
+            // Show loading indicator when form is submitted
+            uploadButton.style.display = 'none';
+            loadingIndicator.style.display = 'block';
+            
+            // Show loading screen
+            loadingScreen.classList.add('show');
+            
+            // Simulate progress (since we can't get real upload progress easily)
+            let progress = 0;
+            const progressInterval = setInterval(function() {
+                progress += 5;
+                if (progress > 90) {
+                    clearInterval(progressInterval);
+                }
+                loadingProgressBar.style.width = progress + '%';
+            }, 300);
+            
+            // Let the form submit
+            return true;
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                const fileName = e.target.files[0].name;
+                fileText.textContent = fileName;
+                fileLabel.classList.add('file-selected');
+                
+                // Enable upload button if file is selected
+                uploadButton.disabled = false;
+            } else {
+                fileText.textContent = 'Choose an Excel file or drag it here';
+                fileLabel.classList.remove('file-selected');
+                
+                // Disable upload button if no file is selected
+                uploadButton.disabled = true;
+            }
+        });
+
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            fileLabel.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // Highlight drop area when item is dragged over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            fileLabel.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            fileLabel.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight() {
+            fileLabel.classList.add('highlight');
+        }
+
+        function unhighlight() {
+            fileLabel.classList.remove('highlight');
+        }
+
+        // Handle dropped files
+        fileLabel.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            fileInput.files = files;
+            
+            if (files.length > 0) {
+                fileText.textContent = files[0].name;
+                fileLabel.classList.add('file-selected');
+                uploadButton.disabled = false;
+            }
+        }
+
+        // Debug information toggle
+        const toggleDebug = document.getElementById('toggleDebug');
+        const debugInfo = document.getElementById('debugInfo');
+        
+        toggleDebug.addEventListener('click', function() {
+            if (debugInfo.style.display === 'none' || !debugInfo.style.display) {
+                debugInfo.style.display = 'block';
+                toggleDebug.textContent = 'Hide Debug Info';
+                
+                // Fetch debug info
+                fetch('/debug')
+                    .then(response => response.json())
+                    .then(data => {
+                        let html = '<h3>Session Information</h3>';
+                        html += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                        debugInfo.innerHTML = html;
+                    })
+                    .catch(error => {
+                        debugInfo.innerHTML = '<p>Error fetching debug info: ' + error.message + '</p>';
+                    });
+            } else {
+                debugInfo.style.display = 'none';
+                toggleDebug.textContent = 'Show Debug Info';
+            }
+        });
+        
+        // Initialize upload button as disabled
+        uploadButton.disabled = true;
+        
+        // Dark mode functionality
+        const toggleSwitch = document.querySelector('#checkbox');
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        
+        // Set initial theme from localStorage
+        if (currentTheme) {
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            
+            if (currentTheme === 'dark') {
+                toggleSwitch.checked = true;
+            }
+        }
+        
+        function switchTheme(e) {
+            if (e.target.checked) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'light');
+                localStorage.setItem('theme', 'light');
+            }
+        }
+        
+        toggleSwitch.addEventListener('change', switchTheme, false);
+    </script>
+</body>
+</html>

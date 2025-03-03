@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Quiz</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Improved MathJax configuration -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true,
+                processEnvironments: true,
+                packages: ['base', 'ams', 'noerrors', 'noundefined']
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            },
+            startup: {
+                ready: function() {
+                    MathJax.startup.defaultReady();
+                    console.log("MathJax initialization complete");
+                    // Typeset the document after initialization
+                    MathJax.typeset();
+                }
+            },
+            chtml: {
+                scale: 1,
+                minScale: 0.5,
+                mtextInheritFont: true,
+                merrorInheritFont: true
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <!-- Additional styles to fix scrollbar issues -->
+    <style>
+        /* Better handling of math content */
+        .mathjax-wrapper {
+            overflow: visible;
+            max-width: 100%;
+            display: inline-block;
+        }
+        
+        /* Improve spacing in question content */
+        .question-content {
+            margin-bottom: 1.5rem;
+        }
+        
+        /* Better styling for translation text */
+        .question-translation {
+            margin: 0.75rem 0;
+            padding: 0.5rem 0.75rem;
+            background-color: var(--background-color);
+            border-left: 3px solid var(--border-color);
+            font-style: italic;
+        }
+        
+        /* Remove all scrollbars from MathJax elements */
+        .mjx-chtml, .MathJax, .MJX-TEX {
+            overflow: visible !important;
+        }
+        
+        /* Special handling for fractions and taller expressions */
+        .mjx-stack {
+            display: inline-block !important;
+            vertical-align: middle !important;
+        }
+        
+        /* Ensure inline math doesn't break line heights */
+        .mjx-char {
+            font-size: inherit;
+        }
+
+        /* Dark mode toggle button */
+        .theme-switch-wrapper {
+            display: flex;
+            align-items: center;
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1000;
+        }
+
+        .theme-switch {
+            display: inline-block;
+            height: 24px;
+            position: relative;
+            width: 50px;
+        }
+
+        .theme-switch input {
+            display: none;
+        }
+
+        .slider {
+            background-color: #ccc;
+            bottom: 0;
+            cursor: pointer;
+            left: 0;
+            position: absolute;
+            right: 0;
+            top: 0;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            background-color: white;
+            bottom: 4px;
+            content: "";
+            height: 16px;
+            left: 4px;
+            position: absolute;
+            transition: .4s;
+            width: 16px;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--primary-color);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+    </style>
+</head>
+<body>
+    <!-- Dark Mode Toggle -->
+    <div class="theme-switch-wrapper">
+        <label class="theme-switch" for="checkbox">
+            <input type="checkbox" id="checkbox" />
+            <div class="slider"></div>
+        </label>
+    </div>
+
+    <div class="quiz-container">
+        <div class="quiz-header">
+            <h1>Interactive Quiz</h1>
+            <div class="quiz-actions">
+                <a href="{{ url_for('clear_session') }}" class="btn btn-secondary">Upload New File</a>
+                <button class="btn btn-primary" id="printBtn">Print Quiz</button>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message {% if category %}{{ category }}{% endif %}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="questions-container">
+            {% for question in questions %}
+                <div class="question-card">
+                    <div class="question-metadata">
+                        {% if question.topic %}
+                            <div class="metadata-item">
+                                <span class="metadata-label">Topic:</span>
+                                <span class="metadata-value">{{ question.topic }}</span>
+                            </div>
+                        {% endif %}
+
+                        {% if question.class %}
+                            <div class="metadata-item">
+                                <span class="metadata-label">Class:</span>
+                                <span class="metadata-value">{{ question.class }}</span>
+                            </div>
+                        {% endif %}
+
+                        {% if question.category %}
+                            <div class="metadata-item">
+                                <span class="metadata-label">Category:</span>
+                                <span class="metadata-value">{{ question.category }}</span>
+                            </div>
+                        {% endif %}
+
+                        {% if question.chapter %}
+                            <div class="metadata-item">
+                                <span class="metadata-label">Chapter:</span>
+                                <span class="metadata-value">{{ question.chapter }}</span>
+                            </div>
+                        {% endif %}
+                        
+                        {% if question.level %}
+                            <div class="metadata-item">
+                                <span class="metadata-label">Level:</span>
+                                <span class="metadata-value">{{ question.level }}</span>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="question-content">
+                        <div class="question-text">{{ question.question|safe }}</div>
+                        
+                        {% if question.translation %}
+                            <div class="question-translation">{{ question.translation|safe }}</div>
+                        {% endif %}
+
+                        {% if question.formula %}
+                            <div class="question-formula">Formula: {{ question.formula|safe }}</div>
+                        {% endif %}
+
+                        {% if question.image %}
+                            <div class="question-image">
+                                <img src="{{ question.image }}" alt="Question image">
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="options-container">
+                        {% for option_key, option_value in question.options.items() %}
+                            <div class="option {% if option_key == question.correct_option %}correct-option{% endif %}">
+                                <span class="option-key">{{ option_key }}</span>
+                                <span class="option-value">{{ option_value|safe }}</span>
+                                {% if option_key == question.correct_option %}
+                                    <span class="correct-marker">✓</span>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="back-to-top">
+            <button id="backToTopBtn" title="Back to Top">↑</button>
+        </div>
+    </div>
+
+    <script>
+        // Back to top button functionality
+        const backToTopButton = document.getElementById('backToTopBtn');
+        
+        window.addEventListener('scroll', () => {
+            if (window.pageYOffset > 300) {
+                backToTopButton.style.display = 'block';
+            } else {
+                backToTopButton.style.display = 'none';
+            }
+        });
+        
+        backToTopButton.addEventListener('click', () => {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+
+        // Print functionality
+        document.getElementById('printBtn').addEventListener('click', () => {
+            window.print();
+        });
+        
+        // Enhanced MathJax handling to eliminate scrollbars
+        document.addEventListener("DOMContentLoaded", function() {
+            console.log("DOM loaded, waiting for MathJax");
+            
+            function enhanceMathJax() {
+                // Remove any unwanted scrollbars
+                document.querySelectorAll('.MathJax, .mjx-chtml, .MJX-TEX').forEach(function(elem) {
+                    elem.style.overflow = 'visible';
+                });
+                
+                // Fix vertical alignment
+                document.querySelectorAll('.mjx-stack').forEach(function(elem) {
+                    elem.style.verticalAlign = 'middle';
+                });
+            }
+            
+            function retypeset() {
+                if (window.MathJax) {
+                    console.log("Re-typesetting MathJax content");
+                    try {
+                        window.MathJax.typeset();
+                        console.log("MathJax typesetting complete");
+                        setTimeout(enhanceMathJax, 100);
+                    } catch (e) {
+                        console.error("MathJax typesetting error:", e);
+                    }
+                }
+            }
+            
+            // Typeset after a short delay to ensure DOM is fully loaded
+            setTimeout(retypeset, 500);
+            
+            // And again after a longer delay in case of slow loading elements
+            setTimeout(retypeset, 2000);
+            
+            // Run enhanceMathJax immediately after page load
+            setTimeout(enhanceMathJax, 100);
+        });
+</body>
+
+        // Dark mode functionality
+        const toggleSwitch = document.querySelector('#checkbox');
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        
+        // Set initial theme from localStorage
+        if (currentTheme) {
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            
+            if (currentTheme === 'dark') {
+                toggleSwitch.checked = true;
+            }
+        }
+        
+        function switchTheme(e) {
+            if (e.target.checked) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'light');
+                localStorage.setItem('theme', 'light');
+            }
+        }
+        
+        toggleSwitch.addEventListener('change', switchTheme, false);
+    </script>
+</body>
+</html>
+
+</html>
