@@ -146,15 +146,9 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <div class="btn-group btn-group-sm">
-                                            <a href="{{ url_for('student_detail', name=student.Full_Name) }}" class="btn btn-primary">
-                                                <i class="bi bi-file-person"></i> Profile
-                                            </a>
-                                            <button type="button" class="btn btn-outline-secondary add-compare" 
-                                                    data-student="{{ student.Full_Name }}">
-                                                <i class="bi bi-plus-circle"></i> Compare
-                                            </button>
-                                        </div>
+                                        <a href="{{ url_for('student_detail', name=student.Full_Name) }}" class="btn btn-primary btn-sm">
+                                            <i class="bi bi-file-person"></i> Profile
+                                        </a>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -178,13 +172,9 @@
                     </div>
                     {% if students %}
                     <div>
-                        <form id="compareForm" method="post" action="{{ url_for('compare_students') }}">
-                            <div id="selectedStudentsHidden"></div>
-                            <button type="button" class="btn btn-primary" id="compareSelectedBtn" disabled>
-                                <i class="bi bi-bar-chart-line"></i> Compare Selected (<span id="selectedCount">0</span>)
-                            </button>
-                            <input type="hidden" name="comparison_type" value="Success Rate">
-                        </form>
+                        <a href="{{ url_for('compare_students') }}" class="btn btn-primary">
+                            <i class="bi bi-bar-chart-line"></i> Compare Students
+                        </a>
                     </div>
                     {% endif %}
                 </div>
@@ -272,60 +262,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Student comparison selection functionality
-    const selectedStudents = new Set();
-    const compareButtons = document.querySelectorAll('.add-compare');
-    const compareSelectedBtn = document.getElementById('compareSelectedBtn');
-    const selectedStudentsHidden = document.getElementById('selectedStudentsHidden');
-    const compareForm = document.getElementById('compareForm');
-    
-    if (compareButtons.length && compareSelectedBtn && selectedStudentsHidden && compareForm) {
-        // Add click handler for individual "Compare" buttons
-        compareButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const studentName = this.dataset.student;
-                
-                if (selectedStudents.has(studentName)) {
-                    // Remove student
-                    selectedStudents.delete(studentName);
-                    this.classList.remove('btn-danger');
-                    this.classList.add('btn-outline-secondary');
-                    this.innerHTML = '<i class="bi bi-plus-circle"></i> Compare';
-                } else {
-                    // Add student
-                    selectedStudents.add(studentName);
-                    this.classList.remove('btn-outline-secondary');
-                    this.classList.add('btn-danger');
-                    this.innerHTML = '<i class="bi bi-dash-circle"></i> Remove';
-                }
-                
-                // Update the count
-                document.getElementById('selectedCount').textContent = selectedStudents.size;
-                
-                // Enable/disable the "Compare Selected" button
-                compareSelectedBtn.disabled = selectedStudents.size < 2;
-            });
-        });
-        
-        // Add submit handler for the compare form
-        compareSelectedBtn.addEventListener('click', function() {
-            // Clear previous hidden inputs
-            selectedStudentsHidden.innerHTML = '';
-            
-            // Create hidden inputs for each selected student
-            selectedStudents.forEach(studentName => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'students';
-                input.value = studentName;
-                selectedStudentsHidden.appendChild(input);
-            });
-            
-            // Submit the form
-            compareForm.submit();
-        });
-    }
-    
     // Initialize chart if data exists
     {% if summary_data %}
     const daysCtx = document.getElementById('daysWorkedChart').getContext('2d');
@@ -376,7 +312,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     {% endif %}
     
-    // Add sorting functionality for tables
+    // Add improved sorting functionality for tables
     const resultsTable = document.getElementById('resultsTable');
     if (resultsTable) {
         const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
@@ -403,22 +339,35 @@ document.addEventListener('DOMContentLoaded', function() {
                 const table = th.closest('table');
                 const tbody = table.querySelector('tbody');
                 
-                // Remove existing sort classes
+                // Get column index
+                const columnIdx = Array.from(th.parentNode.children).indexOf(th);
+                
+                // Determine sort direction
+                // If this column is already sorted, toggle direction
+                // Otherwise, make it ascending first
+                let isAscending;
+                if (th.classList.contains('sort-asc')) {
+                    // Currently ascending, switch to descending
+                    isAscending = false;
+                } else if (th.classList.contains('sort-desc')) {
+                    // Currently descending, switch to ascending
+                    isAscending = true;
+                } else {
+                    // Not currently sorted, default to ascending
+                    isAscending = true;
+                }
+                
+                // Remove existing sort classes from all headers
                 table.querySelectorAll('th').forEach(el => {
                     el.classList.remove('sort-asc', 'sort-desc');
                 });
                 
-                // Get sort column and order
-                const sortType = th.dataset.sort;
-                const columnIdx = Array.from(th.parentNode.children).indexOf(th);
-                const isAscending = th.classList.contains('sort-asc');
-                
-                // Set new sort class
-                th.classList.add(isAscending ? 'sort-desc' : 'sort-asc');
+                // Set new sort class on current header
+                th.classList.add(isAscending ? 'sort-asc' : 'sort-desc');
                 
                 // Sort the table
                 Array.from(tbody.querySelectorAll('tr'))
-                    .sort(comparer(columnIdx, !isAscending))
+                    .sort(comparer(columnIdx, isAscending))
                     .forEach(tr => tbody.appendChild(tr));
             });
         });

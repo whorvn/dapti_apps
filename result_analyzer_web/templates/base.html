@@ -75,6 +75,7 @@
         .sortable {
             cursor: pointer;
             position: relative;
+            padding-right: 18px;  /* Make room for the indicator */
         }
         
         .sortable:hover {
@@ -82,11 +83,17 @@
         }
         
         .sort-asc::after {
-            content: " ↑";
+            content: "↑";
+            position: absolute;
+            right: 5px;
+            color: #0d6efd;
         }
         
         .sort-desc::after {
-            content: " ↓";
+            content: "↓";
+            position: absolute;
+            right: 5px;
+            color: #0d6efd;
         }
         
         /* Dark mode adjustments */
@@ -262,6 +269,41 @@
         [data-bs-theme="dark"] .zero-tasks-sample {
             background-color: #343a40;
             border: 1px solid #6c757d;
+        }
+
+        /* Enhanced sort indicators */
+        .sortable {
+            cursor: pointer;
+            position: relative;
+            padding-right: 18px;  /* Make room for the indicator */
+        }
+        
+        .sortable:hover {
+            background-color: rgba(0,0,0,0.05);
+        }
+        
+        .sort-asc::after {
+            content: "↑";
+            position: absolute;
+            right: 5px;
+            color: #0d6efd;
+        }
+        
+        .sort-desc::after {
+            content: "↓";
+            position: absolute;
+            right: 5px;
+            color: #0d6efd;
+        }
+        
+        /* [data-bs-theme="dark"] adjustments for sort indicators */
+        [data-bs-theme="dark"] .sortable:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+        
+        [data-bs-theme="dark"] .sort-asc::after,
+        [data-bs-theme="dark"] .sort-desc::after {
+            color: #6ea8fe;
         }
     </style>
     {% block head %}{% endblock %}
