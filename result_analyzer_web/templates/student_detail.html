@@ -133,7 +133,13 @@
                         </div>
                         <div class="row mb-2">
                             <div class="col-sm-6 fw-bold">Average Success Rate:</div>
-                            <div class="col-sm-6">{{ profile.performance.avg_success }}</div>
+                            <div class="col-sm-6">
+                                {% if profile.performance.avg_success == "None%" %}
+                                    N/A
+                                {% else %}
+                                    {{ profile.performance.avg_success }}
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -224,7 +230,34 @@
             <div class="card-body">
                 {% if profile.performance.days_worked == 0 %}
                 <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> This student hasn't started working on tasks yet.
+                    <i class="bi bi-info-circle"></i> This student hasn't completed any tasks yet.
+                    
+                    {% if profile.in_progress_tasks > 0 %}
+                    <p>However, they have {{ profile.in_progress_tasks }} task(s) in progress.</p>
+                    <div class="table-responsive mt-3">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Subject</th>
+                                    <th>Task</th>
+                                    <th>Current Progress</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for task in profile.in_progress_tasks_data %}
+                                <tr>
+                                    <td>{{ task.subject }}</td>
+                                    <td>{{ task.task }}</td>
+                                    <td>{{ task.progress_rate }}</td>
+                                    <td><span class="badge bg-warning text-dark">In Progress</span></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                    
                     {% if profile.performance.diagnostics_count > 0 %}
                     <p class="mb-0">Please check the Diagnostics tab to see completed diagnostic tests.</p>
                     {% endif %}

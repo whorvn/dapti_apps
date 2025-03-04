@@ -138,7 +138,13 @@
                                     <td>{{ student.Total_Tasks }}</td>
                                     <td>{{ student.Diagnostics_Count }}</td>
                                     <td>{{ student.Max_Streak }}</td>
-                                    <td>{% if student.Zero_Tasks %}N/A{% else %}{{ student.Avg_Success }}%{% endif %}</td>
+                                    <td>
+                                        {% if student.Zero_Tasks or student.Avg_Success is none %}
+                                            N/A
+                                        {% else %}
+                                            {{ student.Avg_Success }}%
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
                                             <a href="{{ url_for('student_detail', name=student.Full_Name) }}" class="btn btn-primary">

@@ -379,33 +379,28 @@ def analyze():
         filtered_df = filtered_df[filtered_df["Subject"] == selected_subject]
     
     # Filter by date range, success rate, and status
-    filtered_df = filtered_df[
+    tasks_df = filtered_df[
         (filtered_df["Completion_Date"] >= start_date) &
         (filtered_df["Completion_Date"] <= end_date) &
-        (filtered_df["Success_Rate"] > min_success_rate) &
+        (filtered_df["Success_Rate"] >= min_success_rate) &
         (filtered_df["Status"] == "Done")
     ]
     
-    # Group by student name
-    student_groups = filtered_df.groupby("Full_Name")
-    
     # Store student summary data
     student_summaries = []
-    student_full_data = {}  # Store full student data
+    student_full_data = {}
     
-    # Get all unique student names and their basic info from original dataframe
-    # Do this first so we have access to all students (including zero tasks students)
+    # Get all unique student names and their basic info from original dataframe first
     all_students = set()
     all_student_info = {}
     
     # Extract all student names and their basic info
-    for idx, row in df.iterrows():
+    for _, row in df.iterrows():
         student_name = row["Full_Name"]
         all_students.add(student_name)
         
         # Store basic student info if we haven't seen this student before
         if student_name not in all_student_info:
-            # Extract diagnostics for this student
             diagnostics = row.get("Diagnostics", {})
             
             all_student_info[student_name] = {
@@ -420,9 +415,9 @@ def analyze():
                 "Diagnostics": diagnostics
             }
     
-    # Process each student with tasks in the filtered data
+    # Process students with tasks in the filtered data
     active_students = set()
-    for student_name, group in student_groups:
+    for student_name, group in tasks_df.groupby("Full_Name"):
         active_students.add(student_name)
         
         # Get the unique dates where the student completed at least one task
@@ -433,7 +428,7 @@ def analyze():
         total_tasks = len(group)
         
         # Only include students who worked on at least min_days
-        if days_worked >= min_days or (min_days == 0 and not zero_tasks_only):
+        if days_worked >= min_days or min_days == 0:  # Changed condition to be more clear
             # Calculate average success rate
             avg_success = group["Success_Rate"].mean()
             
@@ -461,7 +456,7 @@ def analyze():
                 "Total_Tasks": total_tasks,
                 "Diagnostics_Count": diagnostics_count,
                 "Max_Streak": max_streak,
-                "Avg_Success": round(avg_success, 2),  # Round to 2 decimal places
+                "Avg_Success": round(avg_success, 2),
                 "Subjects": subjects_str
             })
             
@@ -471,12 +466,17 @@ def analyze():
     # Find students with zero tasks (those in all_students but not in active_students)
     zero_task_students = all_students - active_students
     
-    # If zero_tasks_only is selected, clear existing students and only show zero-task ones
+    # Process zero tasks students based on filter settings
+    # If min_days is 0 and we're not explicitly filtering for zero task students only,
+    # we should include both students with tasks and students without tasks
+    include_zero_task_students = min_days == 0 or zero_tasks_only
+    
+    # If we want only zero task students, clear the current list
     if zero_tasks_only:
         student_summaries = []
-        
-    # Add zero-task students if showing zero tasks only or if min_days is 0 and not filtering for active students
-    if zero_tasks_only or (min_days == 0 and not student_summaries):
+    
+    # Add zero-task students if appropriate
+    if include_zero_task_students:
         for student_name in zero_task_students:
             if student_name in all_student_info:
                 student_info = all_student_info[student_name]
@@ -485,6 +485,11 @@ def analyze():
                 diagnostics_count = 0
                 if isinstance(student_info.get('Diagnostics'), dict):
                     diagnostics_count = len(student_info.get('Diagnostics', {}))
+                
+                # Skip students who don't have diagnostics if zero_tasks_only is False
+                # (this is optional - uncomment if you only want zero-task students with diagnostics)
+                # if zero_tasks_only is False and diagnostics_count == 0:
+                #     continue
                 
                 # Add student with zero tasks to summaries
                 student_summaries.append({
@@ -666,11 +671,23 @@ def get_student_profile_info(student_data):
     student_info = student_data.iloc[0].to_dict()
     
     # Calculate performance metrics
-    completion_dates = sorted(student_data["Completion_Date"].dt.date.unique())
+    completion_dates = []
+    total_tasks = 0
+    avg_success = None  # Default to None for students with no completed tasks
+    
+    # Get completed tasks
+    completed_tasks = student_data[student_data["Status"] == "Done"]
+    
+    if len(completed_tasks) > 0:
+        completion_dates = sorted(completed_tasks["Completion_Date"].dt.date.unique())
+        total_tasks = len(completed_tasks)
+        avg_success = completed_tasks["Success_Rate"].mean()
+    
     days_worked = len(completion_dates)
-    total_tasks = len(student_data)
-    avg_success = student_data["Success_Rate"].mean()
     max_streak = calculate_max_streak(completion_dates)
+    
+    # Get in-progress tasks
+    in_progress_tasks = student_data[student_data["Status"] == "In Progress"]
     
     # Count diagnostic tests
     diagnostics_count = 0
@@ -678,18 +695,43 @@ def get_student_profile_info(student_data):
         if isinstance(student_info.get('Diagnostics'), dict):
             diagnostics_count = len(student_info.get('Diagnostics', {}))
     
-    # Get recent activities
+    # Get recent activities (both completed and in-progress tasks)
     recent_tasks = student_data.sort_values("Completion_Date", ascending=False).head(5)
     recent_activities = []
     
     for _, row in recent_tasks.iterrows():
-        date_str = row["Completion_Date"].strftime("%Y-%m-%d")
-        recent_activities.append({
-            "date": date_str,
-            "subject": row["Subject"],
-            "task": row["Task"],
-            "success_rate": f"{row['Success_Rate']:.2f}%"
-        })
+        if pd.notna(row["Completion_Date"]):
+            date_str = row["Completion_Date"].strftime("%Y-%m-%d")
+            
+            # Format the success rate based on status
+            if row["Status"] == "Done":
+                success_rate = f"{row['Success_Rate']:.2f}%"
+            else:
+                success_rate = f"{row['Success_Rate']:.2f}% (In Progress)"
+                
+            recent_activities.append({
+                "date": date_str,
+                "subject": row["Subject"],
+                "task": row["Task"],
+                "success_rate": success_rate,
+                "status": row["Status"]
+            })
+    
+    # Format avg_success
+    if avg_success is None:
+        avg_success_str = "None%"  # Special string for template to recognize
+    else:
+        avg_success_str = f"{avg_success:.2f}%"
+    
+    # Prepare in-progress tasks data for display
+    in_progress_tasks_data = []
+    if len(in_progress_tasks) > 0:
+        for _, row in in_progress_tasks.iterrows():
+            in_progress_tasks_data.append({
+                "subject": row.get("Subject", ""),
+                "task": row.get("Task", ""),
+                "progress_rate": f"{row.get('Success_Rate', 0):.2f}%"
+            })
     
     return {
         "personal_info": {
@@ -701,7 +743,7 @@ def get_student_profile_info(student_data):
         "academic_info": {
             "school": student_info.get("School", ""),
             "registration_date": student_info.get("Registration_Date", ""),
-            "subjects": ", ".join(sorted(student_data["Subject"].unique()))
+            "subjects": ", ".join(sorted(set(filter(None, student_data["Subject"].unique()))))
         },
         "contact_info": {
             "parent_number": student_info.get("Parent_Number", "")
@@ -711,9 +753,11 @@ def get_student_profile_info(student_data):
             "total_tasks": total_tasks,
             "diagnostics_count": diagnostics_count,
             "max_streak": max_streak,
-            "avg_success": f"{avg_success:.2f}%"
+            "avg_success": avg_success_str
         },
-        "recent_activity": recent_activities
+        "recent_activity": recent_activities,
+        "in_progress_tasks": len(in_progress_tasks),
+        "in_progress_tasks_data": in_progress_tasks_data
     }
 
 def get_student_timeline_data(student_data):
@@ -1438,6 +1482,43 @@ def cleanup_old_data():
     except Exception as e:
         logger.error(f"Error during data cleanup: {str(e)}")
 
+# Add a route to debug student lists
+@app.route('/debug_students')
+@session_required
+def debug_students():
+    """Debugging endpoint to check student data"""
+    if 'user_id' not in session:
+        return jsonify({"error": "No user session"})
+    
+    user_id = session['user_id']
+    user_dir = os.path.join(app.config['UPLOAD_FOLDER'], user_id)
+    processed_file = os.path.join(user_dir, 'processed_data.pkl')
+    
+    if not os.path.exists(processed_file):
+        return jsonify({"error": "No processed data found"})
+        
+    # Load processed data
+    df = pd.read_pickle(processed_file)
+    
+    # Get a list of all students
+    all_students = df['Full_Name'].unique().tolist()
+    
+    # Get active students (those with at least one completed task)
+    active_students = df[df['Status'] == 'Done']['Full_Name'].unique().tolist()
+    
+    # Calculate zero-task students
+    zero_task_students = list(set(all_students) - set(active_students))
+    
+    # Return the results
+    return jsonify({
+        "total_students": len(all_students),
+        "active_students": len(active_students),
+        "zero_task_students": len(zero_task_students),
+        "zero_task_sample": zero_task_students[:10] if zero_task_students else [],
+        "filter_values": session.get('filter_values', {})
+    })
+
+# Main entry point
 if __name__ == '__main__':
     # Initialize the scheduler
     scheduler = BackgroundScheduler()
