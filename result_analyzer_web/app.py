@@ -330,8 +330,9 @@ def analyze():
         start_date = pd.to_datetime(request.form.get('start_date'))
         end_date = pd.to_datetime(request.form.get('end_date'))
         min_success_rate = float(request.form.get('min_success_rate', 0))
-        min_days = int(request.form.get('min_days', 7))
+        min_days = int(request.form.get('min_days', 0))  # Changed default to 0 to allow zero tasks
         selected_subject = request.form.get('subject', 'All')
+        zero_tasks_only = request.form.get('zero_tasks_only') == 'on'  # New zero tasks filter
         
         # Store the filter values in session
         session['filter_values'] = {
@@ -339,7 +340,8 @@ def analyze():
             'end_date': end_date.strftime('%Y-%m-%d'),
             'min_success_rate': min_success_rate,
             'min_days': min_days,
-            'subject': selected_subject
+            'subject': selected_subject,
+            'zero_tasks_only': zero_tasks_only  # Store zero tasks preference
         }
     else:
         # GET request - use stored filters or defaults
@@ -351,13 +353,15 @@ def analyze():
             min_success_rate = float(filter_values['min_success_rate'])
             min_days = int(filter_values['min_days'])
             selected_subject = filter_values['subject']
+            zero_tasks_only = filter_values.get('zero_tasks_only', False)  # Default to False if not present
         else:
             # First time visit - use defaults
             start_date = pd.to_datetime('2025-02-19')
             end_date = pd.to_datetime('2025-02-27')
             min_success_rate = 0
-            min_days = 7
+            min_days = 0  # Changed default to 0 to allow zero tasks
             selected_subject = 'All'
+            zero_tasks_only = False
             
             # Store default values in session
             session['filter_values'] = {
@@ -365,7 +369,8 @@ def analyze():
                 'end_date': end_date.strftime('%Y-%m-%d'),
                 'min_success_rate': min_success_rate,
                 'min_days': min_days,
-                'subject': selected_subject
+                'subject': selected_subject,
+                'zero_tasks_only': zero_tasks_only
             }
     
     # Apply subject filter if needed
@@ -433,6 +438,75 @@ def analyze():
             # Store full student data
             student_full_data[student_name] = group
     
+    # Add handling for students with zero tasks
+    if zero_tasks_only or min_days == 0:
+        # Get all unique student names from original dataframe
+        all_students = set()
+        all_student_info = {}
+        
+        # Extract all student names and their basic info
+        for _, row in df.iterrows():
+            student_name = row["Full_Name"]
+            all_students.add(student_name)
+            
+            # Store basic student info if we haven't seen this student before
+            if student_name not in all_student_info:
+                all_student_info[student_name] = {
+                    "Name": row.get("Name", ""),
+                    "Surname": row.get("Surname", ""),
+                    "Full_Name": student_name,
+                    "Phone": row.get("Phone", ""),
+                    "Grade": row.get("Grade", ""),
+                    "Diagnostics": row.get("Diagnostics", {})
+                }
+        
+        # Get students in filtered results
+        filtered_students = {s["Full_Name"] for s in student_summaries}
+        
+        # Find students with zero tasks (present in all_students but not in filtered_students)
+        zero_task_students = all_students - filtered_students
+        
+        # If we're only looking for zero task students, clear the current results
+        if zero_tasks_only:
+            student_summaries = []
+        
+        # Add zero-task students if requested (or if viewing all including 0 days worked)
+        if zero_tasks_only or min_days == 0:
+            for student_name in zero_task_students:
+                if student_name in all_student_info:
+                    student_info = all_student_info[student_name]
+                    
+                    # Count diagnostic tests
+                    diagnostics_count = 0
+                    if isinstance(student_info.get('Diagnostics'), dict):
+                        diagnostics_count = len(student_info.get('Diagnostics', {}))
+                    
+                    # Add student with zero tasks to summaries
+                    student_summaries.append({
+                        "Full_Name": student_name,
+                        "Phone": student_info.get("Phone", ""),
+                        "Grade": student_info.get("Grade", ""),
+                        "Days_Worked": 0,
+                        "Total_Tasks": 0,
+                        "Diagnostics_Count": diagnostics_count,
+                        "Max_Streak": 0,
+                        "Avg_Success": 0,
+                        "Subjects": "",
+                        "Zero_Tasks": True  # Mark as a zero-task student
+                    })
+                    
+                    # For student detail view, create empty dataframe with student info
+                    empty_df = pd.DataFrame([{
+                        "Name": student_info.get("Name", ""),
+                        "Surname": student_info.get("Surname", ""),
+                        "Phone": student_info.get("Phone", ""),
+                        "Grade": student_info.get("Grade", ""),
+                        "Full_Name": student_name,
+                        "Diagnostics": student_info.get("Diagnostics", {})
+                    }])
+                    
+                    student_full_data[student_name] = empty_df
+    
     # Convert DataFrame in student_full_data to dict for serialization
     serializable_full_data = {name: df.to_dict('records') for name, df in student_full_data.items()}
     
@@ -495,7 +569,8 @@ def analyze():
                            students=student_summaries, 
                            summary_data=summary_data, 
                            subjects=session.get('subjects', []),
-                           total_students=total_students)
+                           total_students=total_students,
+                           zero_tasks_only=zero_tasks_only)  # Pass the filter value to the template
 
 @app.route('/student/<name>')
 @session_required
@@ -1175,8 +1250,9 @@ def reset_filters():
             'start_date': '2025-02-19',
             'end_date': '2025-02-27',
             'min_success_rate': 0,
-            'min_days': 7,
-            'subject': 'All'
+            'min_days': 0,  # Changed to 0 to allow viewing students with zero tasks
+            'subject': 'All',
+            'zero_tasks_only': False  # Add this to reset zero tasks filter
         }
     return redirect(url_for('analyze'))
 
@@ -1377,4 +1453,3 @@ if __name__ == '__main__':
     
     # Run the Flask app
     app.run(debug=True, use_reloader=False)  # use_reloader=False to prevent duplicate scheduler
-``` 

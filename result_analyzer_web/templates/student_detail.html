@@ -178,6 +178,16 @@
                 <h5 class="mb-0">Activity Timeline</h5>
             </div>
             <div class="card-body">
+                {% if profile.performance.days_worked == 0 %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> This student hasn't started working on tasks yet.
+                    {% if diagnostics_data.has_data %}
+                    They have completed {{ diagnostics_data.count }} diagnostic test(s).
+                    {% else %}
+                    No diagnostic tests have been completed either.
+                    {% endif %}
+                </div>
+                {% else %}
                 <div class="table-responsive">
                     <table class="table table-bordered table-hover">
                         <thead class="table-light">
@@ -200,6 +210,7 @@
                         </tbody>
                     </table>
                 </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -211,6 +222,14 @@
                 <h5 class="mb-0">Tasks</h5>
             </div>
             <div class="card-body">
+                {% if profile.performance.days_worked == 0 %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> This student hasn't started working on tasks yet.
+                    {% if profile.performance.diagnostics_count > 0 %}
+                    <p class="mb-0">Please check the Diagnostics tab to see completed diagnostic tests.</p>
+                    {% endif %}
+                </div>
+                {% else %}
                 <div class="table-responsive">
                     <table class="table table-bordered table-hover">
                         <thead class="table-light">
@@ -235,6 +254,7 @@
                         </tbody>
                     </table>
                 </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -246,7 +266,11 @@
                 <h5 class="mb-0">Progress Charts</h5>
             </div>
             <div class="card-body">
-                {% if progress_data %}
+                {% if profile.performance.days_worked == 0 %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> No progress data available yet. This student hasn't started working on tasks.
+                </div>
+                {% elif progress_data %}
                 <div class="row">
                     <div class="col-12 mb-4">
                         <div class="chart-container" style="position: relative; height:300px;">
@@ -281,10 +305,14 @@
             </div>
             <div class="card-body">
                 {% if diagnostics_data.has_data %}
-                <div class="alert alert-info mb-4">
+                <div class="alert {% if profile.performance.days_worked == 0 %}alert-warning{% else %}alert-info{% endif %} mb-4">
                     <strong>Diagnostic Tests Completed:</strong> {{ diagnostics_data.count }}
                     {% if diagnostics_data.avg_score != "N/A" %}
                     | <strong>Average Score:</strong> {{ diagnostics_data.avg_score }}
+                    {% endif %}
+                    
+                    {% if profile.performance.days_worked == 0 %}
+                    <br><strong>Note:</strong> This student has completed diagnostic tests but has not started any practice tasks yet.
                     {% endif %}
                 </div>
                 <div class="table-responsive">
@@ -419,11 +447,7 @@ document.addEventListener('DOMContentLoaded', function() {
             {{ subject_data.subjects|tojson }},
             [
                 {
-                    label: 'Tasks Completed',
-                    data: {{ subject_data.tasks|tojson }},
-                    backgroundColor: 'rgba(255, 99, 132, 0.7)',
-                    borderColor: 'rgba(255, 99, 132, 1)',
-                    borderWidth: 1
+                    label: 'Tasks Completed',                    data: {{ subject_data.tasks|tojson }},                    backgroundColor: 'rgba(255, 99, 132, 0.7)',                    borderColor: 'rgba(255, 99, 132, 1)',                    borderWidth: 1
                 },
                 {
                     label: 'Success Rate (%)',

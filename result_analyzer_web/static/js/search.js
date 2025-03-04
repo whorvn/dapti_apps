@@ -1,52 +1,76 @@
 /**
- * Student search and table filtering functionality
+ * Search functionality for the student results table
  */
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Student search functionality
     const searchInput = document.getElementById('studentSearch');
-    const searchFeedback = document.getElementById('searchFeedback');
-    const clearSearchBtn = document.getElementById('clearSearch');
-    const studentTable = document.getElementById('studentsTable');
+    const searchButton = document.getElementById('searchButton');
+    const resultsTable = document.getElementById('resultsTable');
     
-    if (!searchInput || !studentTable) return;
+    if (!searchInput || !searchButton || !resultsTable) return;
     
-    const tableRows = Array.from(studentTable.querySelectorAll('tbody tr'));
-    
-    function filterTable() {
-        const searchTerm = searchInput.value.trim().toLowerCase();
+    // Function to perform search
+    function performSearch() {
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        const rows = resultsTable.querySelectorAll('tbody tr');
+        
         let matchCount = 0;
         
-        tableRows.forEach(row => {
-            const name = (row.cells[0].textContent || '').toLowerCase();
-            const phone = (row.cells[1].textContent || '').toLowerCase();
-            const matchesSearch = name.includes(searchTerm) || phone.includes(searchTerm);
+        rows.forEach(row => {
+            const name = row.cells[0].textContent.toLowerCase();
+            const grade = row.cells[1].textContent.toLowerCase();
+            const subjects = row.cells[7] ? row.cells[7].textContent.toLowerCase() : '';
             
-            row.style.display = matchesSearch ? '' : 'none';
-            if (matchesSearch) matchCount++;
+            // Show row if search term is found in name, grade, or subjects
+            if (name.includes(searchTerm) || grade.includes(searchTerm) || subjects.includes(searchTerm)) {
+                row.style.display = '';
+                matchCount++;
+            } else {
+                row.style.display = 'none';
+            }
         });
         
-        // Update search feedback
-        if (searchFeedback) {
-            if (searchTerm) {
-                searchFeedback.textContent = `Found ${matchCount} matching students`;
-            } else {
-                searchFeedback.textContent = '';
+        // Add a "no results" message if no matches were found
+        let noResultsRow = resultsTable.querySelector('.no-results-row');
+        if (matchCount === 0) {
+            if (!noResultsRow) {
+                const tbody = resultsTable.querySelector('tbody');
+                noResultsRow = document.createElement('tr');
+                noResultsRow.className = 'no-results-row';
+                const td = document.createElement('td');
+                td.setAttribute('colspan', '8');
+                td.className = 'text-center py-3';
+                td.textContent = `No students match your search for "${searchTerm}". Try a different search term.`;
+                noResultsRow.appendChild(td);
+                tbody.appendChild(noResultsRow);
             }
+        } else if (noResultsRow) {
+            noResultsRow.remove();
         }
     }
     
-    // Search input event
-    searchInput.addEventListener('input', filterTable);
+    // Search when button is clicked
+    searchButton.addEventListener('click', performSearch);
     
-    // Clear search button
-    if (clearSearchBtn) {
-        clearSearchBtn.addEventListener('click', () => {
-            searchInput.value = '';
-            filterTable();
-        });
-    }
+    // Search when Enter key is pressed in search box
+    searchInput.addEventListener('keyup', function(e) {
+        if (e.key === 'Enter') {
+            performSearch();
+        }
+    });
     
-    // Initialize table filters
-    filterTable();
+    // Clear search when the search box is emptied
+    searchInput.addEventListener('input', function() {
+        if (this.value === '') {
+            resultsTable.querySelectorAll('tbody tr').forEach(row => {
+                row.style.display = '';
+            });
+            
+            // Remove any "no results" row
+            const noResultsRow = resultsTable.querySelector('.no-results-row');
+            if (noResultsRow) {
+                noResultsRow.remove();
+            }
+        }
+    });
 });

@@ -50,6 +50,16 @@
         .has-task {
             background-color: #e6f2ff;
         }
+        
+        /* Style for students with zero tasks */
+        .zero-tasks {
+            background-color: #f2f2f2;
+        }
+        
+        [data-bs-theme="dark"] .zero-tasks {
+            background-color: #343a40;
+            border-left: 3px solid #6c757d;
+        }
 
         .chart-container {
             margin-top: 20px;
@@ -234,6 +244,23 @@
             .nav-tabs .nav-link {
                 white-space: nowrap;
             }
+        }
+        
+        /* Style for the legend */
+        .legend-color {
+            display: inline-block;
+            vertical-align: middle;
+            border-radius: 2px;
+        }
+        
+        .zero-tasks-sample {
+            background-color: #f2f2f2;
+            border: 1px solid #ddd;
+        }
+        
+        [data-bs-theme="dark"] .zero-tasks-sample {
+            background-color: #343a40;
+            border: 1px solid #6c757d;
         }
     </style>
     {% block head %}{% endblock %}
