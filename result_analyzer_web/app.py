@@ -761,7 +761,23 @@ def get_student_profile_info(student_data):
     }
 
 def get_student_timeline_data(student_data):
-    # Create a date range that spans from first task to today
+    """Generate timeline data for student activity"""
+    # Handle the case where all Completion_Date values are NaT (student with zero tasks)
+    if student_data["Completion_Date"].isna().all():
+        # Use only today's date for students with no tasks
+        today = datetime.now().date()
+        return [
+            {
+                "date": today.strftime("%Y-%m-%d"),
+                "subjects": "-",
+                "tasks_count": 0,
+                "task_details": "No tasks completed yet",
+                "avg_success": "-",
+                "has_task": False
+            }
+        ]
+    
+    # For students with tasks, continue with original logic
     first_date = student_data["Completion_Date"].min().date()
     last_date = max(datetime.now().date(), student_data["Completion_Date"].max().date())
     
@@ -814,10 +830,15 @@ def get_student_tasks_data(student_data):
     sorted_data = student_data.sort_values(by=["Completion_Date", "Task"])
     
     tasks_data = []
+    tasks_data = []
     
     # Prepare tasks data
     for _, row in sorted_data.iterrows():
-        date_str = row["Completion_Date"].strftime("%Y-%m-%d")
+        # Handle NaT values in Completion_Date
+        if pd.isna(row["Completion_Date"]):
+            date_str = "N/A"  # Use N/A for missing dates
+        else:
+            date_str = row["Completion_Date"].strftime("%Y-%m-%d")
         
         success_rate = row["Success_Rate"]
         success_class = ""
@@ -841,8 +862,35 @@ def get_student_tasks_data(student_data):
 
 # New function to prepare data for progress chart.js
 def get_progress_chart_data(student_data):
+    """Prepare data for progress charts"""
+    # Check if the student has any completed tasks with valid dates
+    if student_data["Completion_Date"].isna().all():
+        # Return empty data structure for chart
+        return {
+            'dates': [],
+            'success_rates': [],
+            'tasks_count': [],
+            'subjects': [],
+            'subject_success': [],
+            'subject_tasks': []
+        }
+    
+    # Filter out rows with NaT dates before grouping
+    valid_dates_df = student_data.dropna(subset=["Completion_Date"])
+    
+    # If all dates were NaT, return empty data structure
+    if len(valid_dates_df) == 0:
+        return {
+            'dates': [],
+            'success_rates': [],
+            'tasks_count': [],
+            'subjects': [],
+            'subject_success': [],
+            'subject_tasks': []
+        }
+    
     # Calculate daily success rates
-    daily_data = student_data.groupby(student_data["Completion_Date"].dt.date).agg({
+    daily_data = valid_dates_df.groupby(valid_dates_df["Completion_Date"].dt.date).agg({
         "Success_Rate": "mean"
     }).reset_index()
     
@@ -850,7 +898,7 @@ def get_progress_chart_data(student_data):
     daily_data = daily_data.sort_values("Completion_Date")
     
     # Calculate task counts per day
-    task_counts = student_data.groupby(student_data["Completion_Date"].dt.date).size().reset_index()
+    task_counts = valid_dates_df.groupby(valid_dates_df["Completion_Date"].dt.date).size().reset_index()
     task_counts.columns = ["Completion_Date", "Task_Count"]
     
     # Calculate subject performance
@@ -950,79 +998,93 @@ def get_diagnostics_data(student_data):
     }
 
 def generate_progress_charts(student_data, user_id, student_name):
-    # Daily success rate chart
-    daily_data = student_data.groupby(student_data["Completion_Date"].dt.date).agg({
-        "Success_Rate": "mean"
-    }).reset_index()
-    
-    # Sort by date
-    daily_data = daily_data.sort_values("Completion_Date")
-    
+    """Generate progress charts for student profile"""
+    # Use sanitize_filename to create a safe filename
+    safe_name = sanitize_filename(student_name)
+
     # Create the figure with multiple subplots
     fig = Figure(figsize=(10, 12))
     
-    # Daily success rate chart
-    ax1 = fig.add_subplot(311)
-    ax1.plot(daily_data["Completion_Date"], daily_data["Success_Rate"], 
-             marker='o', linestyle='-', color='blue')
-    ax1.set_title('Daily Average Success Rate')
-    ax1.set_ylabel('Success Rate (%)')
-    ax1.set_xlabel('Date')
-    ax1.grid(True, linestyle='--', alpha=0.7)
+    # Check if there are any valid dates for the student
+    valid_dates_df = student_data.dropna(subset=["Completion_Date"])
     
-    # Format dates on x-axis
-    ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-    fig.autofmt_xdate()
-    
-    # Task completion chart - count tasks per day
-    task_counts = student_data.groupby(student_data["Completion_Date"].dt.date).size().reset_index()
-    task_counts.columns = ["Completion_Date", "Task_Count"]
-    
-    # Create the second subplot (tasks completed per day)
-    ax2 = fig.add_subplot(312)
-    ax2.bar(task_counts["Completion_Date"], task_counts["Task_Count"], color='green', alpha=0.7)
-    ax2.set_title('Tasks Completed Per Day')
-    ax2.set_ylabel('Number of Tasks')
-    ax2.set_xlabel('Date')
-    ax2.grid(True, linestyle='--', alpha=0.7, axis='y')
-    
-    # Format dates on x-axis
-    ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-    
-    # Subject performance chart
-    ax3 = fig.add_subplot(313)
-    
-    # Group by subject
-    subject_data = student_data.groupby("Subject").agg({
-        "Success_Rate": "mean",
-        "Task": "count"
-    }).reset_index()
-    
-    # Sort by number of tasks
-    subject_data = subject_data.sort_values("Task", ascending=False)
-    
-    # Bar chart for subjects
-    bars = ax3.bar(subject_data["Subject"], subject_data["Success_Rate"], color='purple', alpha=0.7)
-    
-    # Add task count as text above bars
-    for bar, count in zip(bars, subject_data["Task"]):
-        height = bar.get_height()
-        ax3.text(bar.get_x() + bar.get_width()/2., height + 2,
-                f'{count} tasks', ha='center', va='bottom', rotation=0)
-    
-    ax3.set_title('Average Success Rate by Subject')
-    ax3.set_ylabel('Success Rate (%)')
-    ax3.set_ylim(0, 105)  # Set y limit to accommodate annotations
-    ax3.grid(True, linestyle='--', alpha=0.7, axis='y')
-    
-    # Rotate x-axis labels for better readability
-    plt.setp(ax3.get_xticklabels(), rotation=45, ha='right')
+    if len(valid_dates_df) == 0:
+        # Create a simple plot with "No data available" message
+        ax = fig.add_subplot(111)
+        ax.text(0.5, 0.5, "No task data available for this student",
+                horizontalalignment='center', verticalalignment='center',
+                transform=ax.transAxes, fontsize=14)
+        ax.set_axis_off()
+    else:
+        # Daily success rate chart
+        daily_data = valid_dates_df.groupby(valid_dates_df["Completion_Date"].dt.date).agg({
+            "Success_Rate": "mean"
+        }).reset_index()
+        
+        # Sort by date
+        daily_data = daily_data.sort_values("Completion_Date")
+        
+        # Create the daily success rate chart (first subplot)
+        ax1 = fig.add_subplot(311)
+        ax1.plot(daily_data["Completion_Date"], daily_data["Success_Rate"], 
+                marker='o', linestyle='-', color='blue')
+        ax1.set_title('Daily Average Success Rate')
+        ax1.set_ylabel('Success Rate (%)')
+        ax1.set_xlabel('Date')
+        ax1.grid(True, linestyle='--', alpha=0.7)
+        
+        # Format dates on x-axis
+        ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+        fig.autofmt_xdate()
+        
+        # Task completion chart - count tasks per day
+        task_counts = valid_dates_df.groupby(valid_dates_df["Completion_Date"].dt.date).size().reset_index()
+        task_counts.columns = ["Completion_Date", "Task_Count"]
+        
+        # Create the second subplot (tasks completed per day)
+        ax2 = fig.add_subplot(312)
+        ax2.bar(task_counts["Completion_Date"], task_counts["Task_Count"], color='green', alpha=0.7)
+        ax2.set_title('Tasks Completed Per Day')
+        ax2.set_ylabel('Number of Tasks')
+        ax2.set_xlabel('Date')
+        ax2.grid(True, linestyle='--', alpha=0.7, axis='y')
+        
+        # Format dates on x-axis
+        ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+        
+        # Subject performance chart
+        ax3 = fig.add_subplot(313)
+        
+        # Group by subject
+        subject_data = student_data.groupby("Subject").agg({
+            "Success_Rate": "mean",
+            "Task": "count"
+        }).reset_index()
+        
+        # Sort by number of tasks
+        subject_data = subject_data.sort_values("Task", ascending=False)
+        
+        # Bar chart for subjects
+        bars = ax3.bar(subject_data["Subject"], subject_data["Success_Rate"], color='purple', alpha=0.7)
+        
+        # Add task count as text above bars
+        for bar, count in zip(bars, subject_data["Task"]):
+            height = bar.get_height()
+            ax3.text(bar.get_x() + bar.get_width()/2., height + 2,
+                    f'{count} tasks', ha='center', va='bottom', rotation=0)
+        
+        ax3.set_title('Average Success Rate by Subject')
+        ax3.set_ylabel('Success Rate (%)')
+        ax3.set_ylim(0, 105)  # Set y limit to accommodate annotations
+        ax3.grid(True, linestyle='--', alpha=0.7, axis='y')
+        
+        # Rotate x-axis labels for better readability
+        plt.setp(ax3.get_xticklabels(), rotation=45, ha='right')
     
     # Adjust layout
     fig.tight_layout()
     
-    # Save chart - handle special characters in the filename
-    safe_name = sanitize_filename(student_name)
+    # Save chart with safe filename
     chart_filename = f'progress_chart_{user_id}_{safe_name}.png'
     
     # Use absolute path to ensure the directory exists
@@ -1038,11 +1100,15 @@ def generate_progress_charts(student_data, user_id, student_name):
     return url_for('static', filename=f'charts/{chart_filename}')
 
 def generate_subject_comparison(student_data, user_id, student_name):
+    """Generate subject comparison chart for student profile"""
+    # Use sanitize_filename to create a safe filename
+    safe_name = sanitize_filename(student_name)
+    
     subjects = sorted(student_data["Subject"].unique())
     
     if len(subjects) <= 1:
         return None
-        
+    
     # Create figure for subject comparison
     fig = Figure(figsize=(10, 6))
     ax = fig.add_subplot(111)
@@ -1090,8 +1156,7 @@ def generate_subject_comparison(student_data, user_id, student_name):
     # Adjust layout
     fig.tight_layout()
     
-    # Save chart - handle special characters in the filename
-    safe_name = sanitize_filename(student_name)
+    # Save chart with safe filename
     chart_filename = f'subject_chart_{user_id}_{safe_name}.png'
     
     # Use absolute path to ensure the directory exists
@@ -1424,7 +1489,6 @@ def check_session():
     # Check if session is about to expire (within 10 minutes)
     time_left = session_lifetime - time_elapsed
     minutes_left = time_left.total_seconds() / 60
-    
     if minutes_left < 10:  # Warning threshold: 10 minutes
         return jsonify({
             'valid': True,
@@ -1448,8 +1512,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     filename='app.log',
-    filemode='a'
-)
+    filemode='a')
 logger = logging.getLogger('data_cleanup')
 
 # Add data cleanup function
@@ -1462,8 +1525,8 @@ def cleanup_old_data():
         upload_folder = app.config['UPLOAD_FOLDER']
         
         # List all user folders
-        user_folders = [f for f in os.listdir(upload_folder) 
-                       if os.path.isdir(os.path.join(upload_folder, f))]
+        user_folders = [f for f in os.listdir(upload_folder)
+                        if os.path.isdir(os.path.join(upload_folder, f))]
         
         cleaned_count = 0
         for user_id in user_folders:
@@ -1496,7 +1559,7 @@ def debug_students():
     
     if not os.path.exists(processed_file):
         return jsonify({"error": "No processed data found"})
-        
+    
     # Load processed data
     df = pd.read_pickle(processed_file)
     
@@ -1518,7 +1581,7 @@ def debug_students():
         "filter_values": session.get('filter_values', {})
     })
 
-# Main entry point
+# Main entry point - replace everything after the debug_students function
 if __name__ == '__main__':
     # Initialize the scheduler
     scheduler = BackgroundScheduler()
