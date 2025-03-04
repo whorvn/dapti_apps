@@ -393,8 +393,38 @@ def analyze():
     student_summaries = []
     student_full_data = {}  # Store full student data
     
-    # Process each student's data
+    # Get all unique student names and their basic info from original dataframe
+    # Do this first so we have access to all students (including zero tasks students)
+    all_students = set()
+    all_student_info = {}
+    
+    # Extract all student names and their basic info
+    for idx, row in df.iterrows():
+        student_name = row["Full_Name"]
+        all_students.add(student_name)
+        
+        # Store basic student info if we haven't seen this student before
+        if student_name not in all_student_info:
+            # Extract diagnostics for this student
+            diagnostics = row.get("Diagnostics", {})
+            
+            all_student_info[student_name] = {
+                "Name": row.get("Name", ""),
+                "Surname": row.get("Surname", ""),
+                "Full_Name": student_name,
+                "Phone": row.get("Phone", ""),
+                "Grade": row.get("Grade", ""),
+                "School": row.get("School", ""),
+                "Registration_Date": row.get("Registration_Date", ""),
+                "Parent_Number": row.get("Parent_Number", ""),
+                "Diagnostics": diagnostics
+            }
+    
+    # Process each student with tasks in the filtered data
+    active_students = set()
     for student_name, group in student_groups:
+        active_students.add(student_name)
+        
         # Get the unique dates where the student completed at least one task
         completion_dates = sorted(group["Completion_Date"].dt.date.unique())
         days_worked = len(completion_dates)
@@ -403,7 +433,7 @@ def analyze():
         total_tasks = len(group)
         
         # Only include students who worked on at least min_days
-        if days_worked >= min_days:
+        if days_worked >= min_days or (min_days == 0 and not zero_tasks_only):
             # Calculate average success rate
             avg_success = group["Success_Rate"].mean()
             
@@ -438,74 +468,54 @@ def analyze():
             # Store full student data
             student_full_data[student_name] = group
     
-    # Add handling for students with zero tasks
-    if zero_tasks_only or min_days == 0:
-        # Get all unique student names from original dataframe
-        all_students = set()
-        all_student_info = {}
+    # Find students with zero tasks (those in all_students but not in active_students)
+    zero_task_students = all_students - active_students
+    
+    # If zero_tasks_only is selected, clear existing students and only show zero-task ones
+    if zero_tasks_only:
+        student_summaries = []
         
-        # Extract all student names and their basic info
-        for _, row in df.iterrows():
-            student_name = row["Full_Name"]
-            all_students.add(student_name)
-            
-            # Store basic student info if we haven't seen this student before
-            if student_name not in all_student_info:
-                all_student_info[student_name] = {
-                    "Name": row.get("Name", ""),
-                    "Surname": row.get("Surname", ""),
+    # Add zero-task students if showing zero tasks only or if min_days is 0 and not filtering for active students
+    if zero_tasks_only or (min_days == 0 and not student_summaries):
+        for student_name in zero_task_students:
+            if student_name in all_student_info:
+                student_info = all_student_info[student_name]
+                
+                # Count diagnostic tests
+                diagnostics_count = 0
+                if isinstance(student_info.get('Diagnostics'), dict):
+                    diagnostics_count = len(student_info.get('Diagnostics', {}))
+                
+                # Add student with zero tasks to summaries
+                student_summaries.append({
                     "Full_Name": student_name,
-                    "Phone": row.get("Phone", ""),
-                    "Grade": row.get("Grade", ""),
-                    "Diagnostics": row.get("Diagnostics", {})
-                }
-        
-        # Get students in filtered results
-        filtered_students = {s["Full_Name"] for s in student_summaries}
-        
-        # Find students with zero tasks (present in all_students but not in filtered_students)
-        zero_task_students = all_students - filtered_students
-        
-        # If we're only looking for zero task students, clear the current results
-        if zero_tasks_only:
-            student_summaries = []
-        
-        # Add zero-task students if requested (or if viewing all including 0 days worked)
-        if zero_tasks_only or min_days == 0:
-            for student_name in zero_task_students:
-                if student_name in all_student_info:
-                    student_info = all_student_info[student_name]
-                    
-                    # Count diagnostic tests
-                    diagnostics_count = 0
-                    if isinstance(student_info.get('Diagnostics'), dict):
-                        diagnostics_count = len(student_info.get('Diagnostics', {}))
-                    
-                    # Add student with zero tasks to summaries
-                    student_summaries.append({
-                        "Full_Name": student_name,
-                        "Phone": student_info.get("Phone", ""),
-                        "Grade": student_info.get("Grade", ""),
-                        "Days_Worked": 0,
-                        "Total_Tasks": 0,
-                        "Diagnostics_Count": diagnostics_count,
-                        "Max_Streak": 0,
-                        "Avg_Success": 0,
-                        "Subjects": "",
-                        "Zero_Tasks": True  # Mark as a zero-task student
-                    })
-                    
-                    # For student detail view, create empty dataframe with student info
-                    empty_df = pd.DataFrame([{
-                        "Name": student_info.get("Name", ""),
-                        "Surname": student_info.get("Surname", ""),
-                        "Phone": student_info.get("Phone", ""),
-                        "Grade": student_info.get("Grade", ""),
-                        "Full_Name": student_name,
-                        "Diagnostics": student_info.get("Diagnostics", {})
-                    }])
-                    
-                    student_full_data[student_name] = empty_df
+                    "Phone": student_info.get("Phone", ""),
+                    "Grade": student_info.get("Grade", ""),
+                    "Days_Worked": 0,  # Exactly 0 days
+                    "Total_Tasks": 0,  # Exactly 0 tasks
+                    "Diagnostics_Count": diagnostics_count,
+                    "Max_Streak": 0,
+                    "Avg_Success": 0,
+                    "Subjects": "",
+                    "Zero_Tasks": True  # Mark as a zero-task student
+                })
+                
+                # For student detail view, create empty dataframe with student info
+                empty_df = pd.DataFrame([all_student_info[student_name]])
+                
+                # Make sure it has the minimal required columns for the detail view
+                if "Completion_Date" not in empty_df.columns:
+                    empty_df["Completion_Date"] = pd.NaT
+                if "Success_Rate" not in empty_df.columns:
+                    empty_df["Success_Rate"] = 0
+                if "Subject" not in empty_df.columns:
+                    empty_df["Subject"] = ""
+                if "Task" not in empty_df.columns:
+                    empty_df["Task"] = ""
+                if "Status" not in empty_df.columns:
+                    empty_df["Status"] = ""
+                
+                student_full_data[student_name] = empty_df
     
     # Convert DataFrame in student_full_data to dict for serialization
     serializable_full_data = {name: df.to_dict('records') for name, df in student_full_data.items()}

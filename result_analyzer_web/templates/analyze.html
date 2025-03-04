@@ -48,9 +48,15 @@
                         </div>
                         <div class="col-md-6 col-lg-3 mb-3">
                             <label for="min_days" class="form-label">Min Working Days:</label>
-                            <input type="number" class="form-control" id="min_days" name="min_days" 
-                                   min="0" max="100" step="1" 
-                                   value="{{ session.filter_values.min_days if session.filter_values else 0 }}">
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="min_days" name="min_days" 
+                                       min="0" max="100" step="1" 
+                                       value="{{ session.filter_values.min_days if session.filter_values else 0 }}">
+                                <span class="input-group-text" data-bs-toggle="tooltip" title="Set to 0 to include students with no tasks">
+                                    <i class="bi bi-info-circle"></i>
+                                </span>
+                            </div>
+                            <small class="form-text text-muted">Set to 0 to include students with no tasks</small>
                         </div>
                         <div class="col-md-6 col-lg-4 mb-3">
                             <label for="subject" class="form-label">Subject:</label>
@@ -242,6 +248,12 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
     // Reset filters button
     const resetBtn = document.getElementById('resetFilters');
     if (resetBtn) {
