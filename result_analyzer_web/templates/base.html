@@ -307,6 +307,30 @@
         }
     </style>
     {% block head %}{% endblock %}
+    <!-- Add this line to the head section of base.html -->
+    <script src="{{ url_for('static', filename='js/form-validation.js') }}"></script>
+    <!-- Add filter debug info to the page for troubleshooting -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if on the analyze page
+        if (window.location.pathname.includes('/analyze')) {
+            // Create a hidden div to store debug info about filters
+            const debugDiv = document.createElement('div');
+            debugDiv.style.display = 'none';
+            debugDiv.id = 'filter-debug-info';
+            debugDiv.innerHTML = `
+                <h4>Filter Debug Info</h4>
+                <p>min_tasks direct: {{ min_tasks|default('undefined') }}</p>
+                <p>min_tasks from session: {{ session.filter_values.min_tasks|default('not in session', true) if session.filter_values else 'no session' }}</p>
+                <p>All filter values: {{ session.filter_values|tojson if session.filter_values else 'no filter values' }}</p>
+            `;
+            document.body.appendChild(debugDiv);
+            
+            // Log filter values to console
+            console.log('Filter values in session:', {{ session.filter_values|tojson if session.filter_values else '{}' }});
+        }
+    });
+    </script>
 </head>
 <body>
     <!-- Loading overlay -->

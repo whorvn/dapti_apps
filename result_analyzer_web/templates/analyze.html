@@ -44,19 +44,26 @@
                             <label for="min_success_rate" class="form-label">Min Success Rate (%):</label>
                             <input type="number" class="form-control" id="min_success_rate" name="min_success_rate" 
                                    min="0" max="100" step="5" 
-                                   value="{{ session.filter_values.min_success_rate if session.filter_values else 0 }}">
+                                   value="{{ min_success_rate|default(session.filter_values.min_success_rate|default(0, true), true) }}">
                         </div>
                         <div class="col-md-6 col-lg-3 mb-3">
                             <label for="min_days" class="form-label">Min Working Days:</label>
                             <div class="input-group">
                                 <input type="number" class="form-control" id="min_days" name="min_days" 
                                        min="0" max="100" step="1" 
-                                       value="{{ session.filter_values.min_days if session.filter_values else 0 }}">
+                                       value="{{ min_days|default(session.filter_values.min_days|default(0, true), true) }}">
                                 <span class="input-group-text" data-bs-toggle="tooltip" title="Set to 0 to include students with no tasks">
                                     <i class="bi bi-info-circle"></i>
                                 </span>
                             </div>
                             <small class="form-text text-muted">Set to 0 to include students with no tasks</small>
+                        </div>
+                        <div class="col-md-6 col-lg-3 mb-3">
+                            <label for="min_tasks" class="form-label">Min Tasks Completed:</label>
+                            <input type="number" class="form-control" id="min_tasks" name="min_tasks" 
+                                   min="0" 
+                                   value="{{ min_tasks|default(0) }}">
+                            <small class="form-text text-muted">Minimum number of tasks required</small>
                         </div>
                         <div class="col-md-6 col-lg-4 mb-3">
                             <label for="subject" class="form-label">Subject:</label>
@@ -372,6 +379,10 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+
+    // This will log the current min_tasks value to help with debugging
+    console.log("min_tasks value: {{ min_tasks|default(0) }}");
+    console.log("Session min_tasks value: {{ session.filter_values.min_tasks|default(0, true) if session.filter_values else 0 }}");
 });
 </script>
 {% endblock %}

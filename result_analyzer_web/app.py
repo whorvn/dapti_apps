@@ -329,10 +329,25 @@ def analyze():
         # Form submission - update filters
         start_date = pd.to_datetime(request.form.get('start_date'))
         end_date = pd.to_datetime(request.form.get('end_date'))
-        min_success_rate = float(request.form.get('min_success_rate', 0))
-        min_days = int(request.form.get('min_days', 0))  # Changed default to 0 to allow zero tasks
+        
+        # Fix for empty string values - add proper error handling
+        try:
+            min_success_rate = float(request.form.get('min_success_rate', 0) or 0)
+        except (ValueError, TypeError):
+            min_success_rate = 0
+            
+        try:
+            min_days = int(request.form.get('min_days', 0) or 0)
+        except (ValueError, TypeError):
+            min_days = 0
+            
+        try:
+            min_tasks = int(request.form.get('min_tasks', 0) or 0)
+        except (ValueError, TypeError):
+            min_tasks = 0
+            
         selected_subject = request.form.get('subject', 'All')
-        zero_tasks_only = request.form.get('zero_tasks_only') == 'on'  # New zero tasks filter
+        zero_tasks_only = request.form.get('zero_tasks_only') == 'on'
         
         # Store the filter values in session
         session['filter_values'] = {
@@ -340,26 +355,48 @@ def analyze():
             'end_date': end_date.strftime('%Y-%m-%d'),
             'min_success_rate': min_success_rate,
             'min_days': min_days,
+            'min_tasks': min_tasks,
             'subject': selected_subject,
-            'zero_tasks_only': zero_tasks_only  # Store zero tasks preference
+            'zero_tasks_only': zero_tasks_only
         }
     else:
         # GET request - use stored filters or defaults
         if 'filter_values' in session:
             # Use stored filters
             filter_values = session['filter_values']
-            start_date = pd.to_datetime(filter_values['start_date'])
-            end_date = pd.to_datetime(filter_values['end_date'])
-            min_success_rate = float(filter_values['min_success_rate'])
-            min_days = int(filter_values['min_days'])
-            selected_subject = filter_values['subject']
-            zero_tasks_only = filter_values.get('zero_tasks_only', False)  # Default to False if not present
+            
+            # Fix indentation error here - removed duplicate section and properly indented code
+            app.logger.info(f"Using filter values from session: {filter_values}")
+            start_date = pd.to_datetime(filter_values.get('start_date', '2025-02-19'))
+            end_date = pd.to_datetime(filter_values.get('end_date', '2025-02-27'))
+            
+            # Safely get numeric values
+            try:
+                min_success_rate = float(filter_values.get('min_success_rate', 0))
+            except (ValueError, TypeError):
+                min_success_rate = 0
+                
+            try:
+                min_days = int(filter_values.get('min_days', 0))
+            except (ValueError, TypeError):
+                min_days = 0
+                
+            try:
+                min_tasks = int(filter_values.get('min_tasks', 0))
+                app.logger.info(f"min_tasks from session: {min_tasks}")
+            except (ValueError, TypeError) as e:
+                app.logger.error(f"Error converting min_tasks from session: {str(e)}")
+                min_tasks = 0
+                
+            selected_subject = filter_values.get('subject', 'All')
+            zero_tasks_only = filter_values.get('zero_tasks_only', False)
         else:
             # First time visit - use defaults
             start_date = pd.to_datetime('2025-02-19')
             end_date = pd.to_datetime('2025-02-27')
             min_success_rate = 0
             min_days = 0  # Changed default to 0 to allow zero tasks
+            min_tasks = 0  # Default value for min_tasks
             selected_subject = 'All'
             zero_tasks_only = False
             
@@ -369,6 +406,7 @@ def analyze():
                 'end_date': end_date.strftime('%Y-%m-%d'),
                 'min_success_rate': min_success_rate,
                 'min_days': min_days,
+                'min_tasks': min_tasks,  # Store min_tasks in defaults
                 'subject': selected_subject,
                 'zero_tasks_only': zero_tasks_only
             }
@@ -417,6 +455,8 @@ def analyze():
     
     # Process students with tasks in the filtered data
     active_students = set()
+    students_with_min_tasks = set()  # Create a new set to track students meeting min_tasks
+    
     for student_name, group in tasks_df.groupby("Full_Name"):
         active_students.add(student_name)
         
@@ -427,8 +467,12 @@ def analyze():
         # Count total tasks completed
         total_tasks = len(group)
         
-        # Only include students who worked on at least min_days
-        if days_worked >= min_days or min_days == 0:  # Changed condition to be more clear
+        # Track students who meet the min_tasks requirement
+        if total_tasks >= min_tasks:
+            students_with_min_tasks.add(student_name)
+        
+        # Only include students who meet BOTH conditions
+        if days_worked >= min_days and total_tasks >= min_tasks:
             # Calculate average success rate
             avg_success = group["Success_Rate"].mean()
             
@@ -466,17 +510,18 @@ def analyze():
     # Find students with zero tasks (those in all_students but not in active_students)
     zero_task_students = all_students - active_students
     
-    # Process zero tasks students based on filter settings
-    # If min_days is 0 and we're not explicitly filtering for zero task students only,
-    # we should include both students with tasks and students without tasks
-    include_zero_task_students = min_days == 0 or zero_tasks_only
+    # Process zero tasks students ONLY IF explicitly requested OR min_tasks is 0
+    # This is the key change - we will NOT include zero-task students if min_tasks > 0
+    should_include_zero_task_students = zero_tasks_only or (min_tasks == 0 and min_days == 0)
+    
+    app.logger.info(f"Should include zero task students: {should_include_zero_task_students}, zero_tasks_only={zero_tasks_only}, min_tasks={min_tasks}, min_days={min_days}")
     
     # If we want only zero task students, clear the current list
     if zero_tasks_only:
         student_summaries = []
     
     # Add zero-task students if appropriate
-    if include_zero_task_students:
+    if should_include_zero_task_students:
         for student_name in zero_task_students:
             if student_name in all_student_info:
                 student_info = all_student_info[student_name]
@@ -485,11 +530,6 @@ def analyze():
                 diagnostics_count = 0
                 if isinstance(student_info.get('Diagnostics'), dict):
                     diagnostics_count = len(student_info.get('Diagnostics', {}))
-                
-                # Skip students who don't have diagnostics if zero_tasks_only is False
-                # (this is optional - uncomment if you only want zero-task students with diagnostics)
-                # if zero_tasks_only is False and diagnostics_count == 0:
-                #     continue
                 
                 # Add student with zero tasks to summaries
                 student_summaries.append({
@@ -521,6 +561,21 @@ def analyze():
                     empty_df["Status"] = ""
                 
                 student_full_data[student_name] = empty_df
+    
+    # Check if min_tasks is set and if there are students with zero tasks incorrectly included
+    if min_tasks > 0:
+        # Log for debugging
+        app.logger.info(f"Before filtering for min_tasks={min_tasks}: {len(student_summaries)} students")
+        
+        # Filter out any students that might have slipped through with zero tasks
+        filtered_summaries = []
+        for student in student_summaries:
+            if student.get("Total_Tasks", 0) >= min_tasks:
+                filtered_summaries.append(student)
+        
+        # Replace with filtered list
+        student_summaries = filtered_summaries
+        app.logger.info(f"After filtering: {len(student_summaries)} students")
     
     # Convert DataFrame in student_full_data to dict for serialization
     serializable_full_data = {name: df.to_dict('records') for name, df in student_full_data.items()}
@@ -585,7 +640,10 @@ def analyze():
                            summary_data=summary_data, 
                            subjects=session.get('subjects', []),
                            total_students=total_students,
-                           zero_tasks_only=zero_tasks_only)  # Pass the filter value to the template
+                           zero_tasks_only=zero_tasks_only,
+                           min_tasks=min_tasks,  # Make sure min_tasks is passed to the template
+                           min_days=min_days,
+                           min_success_rate=min_success_rate)
 
 @app.route('/student/<name>')
 @session_required
@@ -1370,6 +1428,7 @@ def reset_filters():
             'end_date': '2025-02-27',
             'min_success_rate': 0,
             'min_days': 0,  # Changed to 0 to allow viewing students with zero tasks
+            'min_tasks': 0,  # Reset min_tasks
             'subject': 'All',
             'zero_tasks_only': False  # Add this to reset zero tasks filter
         }
@@ -1581,7 +1640,30 @@ def debug_students():
         "filter_values": session.get('filter_values', {})
     })
 
-# Main entry point - replace everything after the debug_students function
+# Add a route to debug session data
+@app.route('/debug_session')
+def debug_session():
+    """Debug endpoint to check session data"""
+    if 'user_id' not in session:
+        return jsonify({"error": "No user session"})
+    
+    return jsonify({
+        "user_id": session.get('user_id'),
+        "filter_values": session.get('filter_values', {}),
+        "last_activity": session.get('last_activity'),
+        "subjects": session.get('subjects', [])
+    })
+
+# Add this to ensure integer values are correctly handled
+@app.template_filter('int_or_default')
+def int_or_default(value, default=0):
+    """Convert to integer or return default value"""
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+# Main entry point
 if __name__ == '__main__':
     # Initialize the scheduler
     scheduler = BackgroundScheduler()
